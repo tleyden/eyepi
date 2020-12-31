@@ -20,6 +20,12 @@ NOTE: I installed java8 via `sudo apt install openjdk-8-jdk`, but the greengrass
 
 https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-core-v2.html
 
+Command:
+
+```
+$ sudo -E java -Dlog.store=FILE -jar ./GreengrassCore/lib/Greengrass.jar --aws-region "us-west-2" --root "/greengrass/v2" --thing-name "EyePiGreengrassCore" --thing-group-name "EyePiGreengrassCoreGroup" --tes-role-name "EyePiGreengrassV2TokenExchangeRole" --tes-role-alias-name "EyePiGreengrassCoreTokenExchangeRoleAlias" --component-default-user "ggc_user:ggc_group" --provision true --setup-system-service true --deploy-dev-tools true
+```
+
 ## References
 
 
