@@ -18,6 +18,8 @@ NOTE: I installed java8 via `sudo apt install openjdk-8-jdk`, but the greengrass
 
 ### Greengrass core v2
 
+Follow steps in:
+
 https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-core-v2.html
 
 Command:
@@ -49,6 +51,10 @@ Creating a deployment for Greengrass first party components to the thing group
 Configured Nucleus to deploy aws.greengrass.Cli component
 Successfully set up Nucleus as a system service
 ```
+
+Follow steps in:
+
+https://docs.aws.amazon.com/greengrass/v2/developerguide/getting-started.html
 
 ## References
 
