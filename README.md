@@ -56,6 +56,10 @@ Follow steps in:
 
 https://docs.aws.amazon.com/greengrass/v2/developerguide/getting-started.html
 
+## Install docker engine
+
+https://docs.docker.com/engine/install/debian/  (based on https://docs.aws.amazon.com/greengrass/v2/developerguide/run-docker-container.html)
+
 ## Publish iot core message
 
 1. Figure out how to use a virtualenv from a greeengrass component using this hack: https://unix.stackexchange.com/questions/209646/how-to-activate-virtualenv-when-a-python-script-starts (or if that fails, use a docker container -- I will not pollute the default python3!!)
