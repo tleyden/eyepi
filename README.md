@@ -74,6 +74,39 @@ This step isn't in the instructions, but I think it might fix this error:
 2021-01-01T16:00:30.106Z [WARN] (Copier) com.example.MyDockerComponent: stderr. Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.24/images/load?quiet=1: dial unix /var/run/docker.sock: connect: permission denied. {scriptName=services.com.example.MyDockerComponent.lifecycle.Install.Script, serviceName=com.example.MyDockerComponent, currentState=NEW}
 ```
 
+
+
+```
+mkdir -p artifacts/com.example.MyDockerComponent/1.0.0
+docker save hello-world > artifacts/com.example.MyDockerComponent/1.0.0/hello-world.tar
+```
+
+```
+vi recipes/com.example.MyDockerComponent-1.0.0.yaml
+```
+
+and paste in:
+
+```
+---
+RecipeFormatVersion: '2020-01-25'
+ComponentName: com.example.MyDockerComponent
+ComponentVersion: '1.0.0'
+ComponentDescription: A component that runs a Docker container.
+ComponentPublisher: Amazon
+Manifests:
+  - Platform:
+      os: linux
+    Lifecycle:
+      Install:
+        Script: docker load -i {artifacts:path}/hello-world.tar
+      Run:
+        Script: docker run --rm hello-world
+```
+
+Wait a few mins, then `sudo cat /greengrass/v2/logs/com.example.MyDockerComponent.log`
+
+
 ## Publish iot core message
 
 1. Figure out how to use a virtualenv from a greeengrass component using this hack: https://unix.stackexchange.com/questions/209646/how-to-activate-virtualenv-when-a-python-script-starts (or if that fails, use a docker container -- I will not pollute the default python3!!)
