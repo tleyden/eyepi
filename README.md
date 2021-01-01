@@ -60,6 +60,20 @@ https://docs.aws.amazon.com/greengrass/v2/developerguide/getting-started.html
 
 https://docs.docker.com/engine/install/debian/  (based on https://docs.aws.amazon.com/greengrass/v2/developerguide/run-docker-container.html)
 
+## Get hello-world docker component working
+
+Add ggc_user to docker group:
+
+```
+$ usermod -aG docker ggc_user
+```
+
+This step isn't in the instructions, but I think it might fix this error:
+
+```
+2021-01-01T16:00:30.106Z [WARN] (Copier) com.example.MyDockerComponent: stderr. Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.24/images/load?quiet=1: dial unix /var/run/docker.sock: connect: permission denied. {scriptName=services.com.example.MyDockerComponent.lifecycle.Install.Script, serviceName=com.example.MyDockerComponent, currentState=NEW}
+```
+
 ## Publish iot core message
 
 1. Figure out how to use a virtualenv from a greeengrass component using this hack: https://unix.stackexchange.com/questions/209646/how-to-activate-virtualenv-when-a-python-script-starts (or if that fails, use a docker container -- I will not pollute the default python3!!)
