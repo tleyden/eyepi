@@ -56,6 +56,11 @@ Follow steps in:
 
 https://docs.aws.amazon.com/greengrass/v2/developerguide/getting-started.html
 
+## Publish iot core message
+
+1. Figure out how to use a virtualenv from a greeengrass component using this hack: https://unix.stackexchange.com/questions/209646/how-to-activate-virtualenv-when-a-python-script-starts (or if that fails, use a docker container -- I will not pollute the default python3!!)
+1. `python3 -m pip install awsiotsdk` based on https://github.com/aws/aws-iot-device-sdk-python-v2
+
 ## References
 
 
