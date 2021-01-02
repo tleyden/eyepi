@@ -106,12 +106,20 @@ Manifests:
 
 Wait a few mins, then `sudo cat /greengrass/v2/logs/com.example.MyDockerComponent.log`
 
+## Next steps
 
-## Publish iot core message from docker
+### Publish iot core message from python
 
-1. Follow steps to setup docker for IPC
-1. Create a docker container that has python3 installed, then `python3 -m pip install awsiotsdk` based on https://github.com/aws/aws-iot-device-sdk-python-v2
+1. `python3 -m pip install awsiotsdk`
 1. Publish and iot core message based on https://docs.aws.amazon.com/greengrass/v2/developerguide/interprocess-communication.html#ipc-iot-core-mqtt
+1. Publish fake messages every 5s
+1. View messages with mqtt client in aws console
+1. Create iot rule to invoke lambda function
+
+### Publish iot core message from docker
+
+1. Follow steps to setup docker for IPC, since that's needed in order to connect to iot core
+1. Wrap up python script into docker container
 
 ## References
 
