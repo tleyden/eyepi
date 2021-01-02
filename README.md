@@ -7,20 +7,31 @@ Security camera software that runs on Raspberry Pi with people detection
 1. When a person is detected, notify me, but only notify me once within a 5 minute window, 3 times within an hour, or 5 times per day.
 1. When you notifiy me, include a video capture of the event that triggered the notification
 
-## Core logic
+## MVP Core logic - device
 
-- Read image, store in buffer
+- Read image
 - Check for person recognition
 - If no person, continue
 - If person
     - Check if should send notification based on previous notifications.  If not, continue.
-    - If should send notification
-       - Get previous 10 seconds of video from buffer
-       - Get next 10 seconds of video from webcam
-       - Upload video file to s3 bucket
-       - Generate url to s3 bucket
-       - Push notification via AWS SNS api
+    - Write two files to s3 bucket:
+       - Json file with the detected objects and other metadata
+       - Record the next 10 seconds of video from webcam, or start kinesis stream
 
+## MVP Core logic - cloud
+
+- Trigger lambda function when new s3 file is written
+- The lambda function sends a notification
+- The notification includes the captured video
+
+## Phase 1 - notifaction only
+
+## Phase 2 - add video
+
+# Improvements
+
+- Get previous 10 seconds of video from a buffer
+       
 
 ## Install
 
