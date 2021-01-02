@@ -2,6 +2,26 @@
 
 Security camera software that runs on Raspberry Pi with people detection
 
+## User stories
+
+1. When a person is detected, notify me, but only notify me once within a 5 minute window, 3 times within an hour, or 5 times per day.
+1. When you notifiy me, include a video capture of the event that triggered the notification
+
+## Core logic
+
+- Read image, store in buffer
+- Check for person recognition
+- If no person, continue
+- If person
+    - Check if should send notification based on previous notifications.  If not, continue.
+    - If should send notification
+       - Get previous 10 seconds of video from buffer
+       - Get next 10 seconds of video from webcam
+       - Upload video file to s3 bucket
+       - Generate url to s3 bucket
+       - Push notification via AWS SNS api
+
+
 ## Install
 
 ### How to Run TensorFlow Lite Object Detection Models on the Raspberry Pi
