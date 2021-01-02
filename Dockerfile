@@ -5,6 +5,7 @@ RUN echo "deb http://raspbian.raspberrypi.org/raspbian/ buster main contrib non-
 
 RUN apt-get update && apt-get install -y emacs25-nox libjpeg-dev libtiff5-dev libjasper-dev libpng12-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev qt4-dev-tools libatlas-base-dev
 
+RUN pip3 install --upgrade pip setuptools wheel
 RUN pip3 install boto3
 
 # Need to get an older version of OpenCV because version 4 has errors - see https://github.com/EdjeElectronics/TensorFlow-Lite-Object-Detection-on-Android-and-Raspberry-Pi/blob/master/get_pi_requirements.sh
@@ -13,4 +14,4 @@ RUN pip3 install opencv-python==3.4.11.45
 # Get packages required for TensorFlow
 # Using the tflite_runtime packages available at https://www.tensorflow.org/lite/guide/python
 # Will change to just 'pip3 install tensorflow' once newer versions of TF are added to piwheels
-pip3 install https://github.com/google-coral/pycoral/releases/download/release-frogfish/tflite_runtime-2.5.0-cp37-cp37m-linux_armv7l.whl
+RUN pip3 install https://github.com/google-coral/pycoral/releases/download/release-frogfish/tflite_runtime-2.5.0-cp37-cp37m-linux_armv7l.whl
