@@ -136,6 +136,13 @@ Wait a few mins, then `sudo cat /greengrass/v2/logs/com.example.MyDockerComponen
 1. View messages with mqtt client in aws console
 1. Create iot rule to invoke lambda function
 
+I gave up on this .. see https://github.com/tleyden/eyepi/issues/2 for progress.
+
+### Connect to s3 from greengrass
+
+Got it working!  See https://github.com/tleyden/eyepi/issues/3
+
+
 ### Publish iot core message from docker
 
 1. Follow steps to setup docker for IPC, since that's needed in order to connect to iot core
