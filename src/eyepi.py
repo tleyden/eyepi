@@ -395,7 +395,7 @@ if __name__ == "__main__":
     parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected objects',
                         default=0.5)
     parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
-                        default='')
+                        default='1280x720')
     parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
                         action='store_true')
 
