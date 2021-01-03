@@ -145,7 +145,7 @@ class EyePiEventStream(object):
         print("Captured frame {}/{}".format(self.num_captured_frames, self.num_frames_per_video))
 
         if self.num_captured_frames > self.num_frames_per_video:
-            self.transition_to_idle_state()
+            self.transition_to_idle_state(event)
 
     def transition_to_capturing_state(self, event):
 
