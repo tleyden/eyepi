@@ -335,8 +335,6 @@ def main(args):
         scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
         #num = interpreter.get_tensor(output_details[3]['index'])[0]  # Total number of detected objects (inaccurate and not needed)
 
-        # print("boxes: {} classes: {} scores: {}".format(boxes, classes, scores))
-
         # Loop over all detections and draw detection box if confidence is above minimum threshold
         for i in range(len(scores)):
             if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
@@ -385,6 +383,7 @@ def main(args):
 
 
 if __name__ == "__main__":
+
     # Define and parse input arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
