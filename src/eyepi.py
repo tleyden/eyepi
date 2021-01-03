@@ -26,6 +26,7 @@ import boto3
 from botocore.exceptions import ClientError
 import json
 import datetime
+import concurrent.futures
 
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
@@ -94,6 +95,15 @@ class EyePiEventStream(object):
         self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         self.state = 'IDLE'
 
+        # Threadpool executor to keep from blocking the main thread.
+        # Keep max workers at 1 so it's easier to reason about concurrent access to data.
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+        self.bucket_name = "eyepi"
+
+    def shutdown(self):
+        self.executor.shutdown(wait=True)
+
     def process_event(self, event):
         """
 
@@ -141,7 +151,7 @@ class EyePiEventStream(object):
     def process_event_capturing_state(self, event):
 
         self.num_captured_frames += 1
-        self.writer.write(event.frame)
+        self.writer.write(event.frame)  # TODO: this should happen in self.executor() so it doesn't block the main thread
         print("Captured frame {}/{}".format(self.num_captured_frames, self.num_frames_per_video))
 
         if self.num_captured_frames > self.num_frames_per_video:
@@ -172,8 +182,37 @@ class EyePiEventStream(object):
 
         self.state = 'IDLE'
         print("Finished capturing video: {}".format(self.latest_capture_file_path))
-        self.writer.release()
+
+        # Kick off thread to save video and json with signed s3 url and push both to s3
+        self.executor.submit(
+            self.push_event_to_s3,
+            event=event,
+            filename=self.latest_capture_file_name,
+            object_name=self.latest_capture_file_name,
+        )
+
+        self.writer.release()  # TODO: should happen in self.executor() task
         self.num_captured_frames = 0
+
+    def push_event_to_s3(self, event, filename, object_name):
+        """
+        - Push video to s3
+        - Generate signed URL for video
+        - Write an alert file that says "Person detected .. <link to video>"
+        - Write alert file to s3
+        """
+
+        try:
+            print("Uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
+            response = self.s3_client.upload_file(
+                filename,
+                self.bucket_name,
+                object_name,
+            )
+            print("Finished uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
+        except ClientError as e:
+            print("Exception writing {}} to s3: {}. response: {}".format(object_name, str(e), str(response)))
+
 
     def last_alert_sent_minutes(self):
         # TODO
@@ -379,6 +418,7 @@ def main(args):
 
     # Clean up
     videostream.stop()
+    eyePiEventStream.shutdown()
 
 
 
