@@ -3,7 +3,14 @@ RUN wget https://archive.raspbian.org/raspbian.public.key -O - | apt-key add -
 RUN wget https://archive.raspberrypi.org/debian/raspberrypi.gpg.key -O - | apt-key add -
 RUN echo "deb http://raspbian.raspberrypi.org/raspbian/ buster main contrib non-free rpi" >> /etc/apt/sources.list
 
-RUN apt-get update && apt-get install -y emacs25-nox libjpeg-dev libtiff5-dev libjasper-dev libpng12-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev qt4-dev-tools libatlas-base-dev
+RUN apt-get update && apt-get install -y emacs25-nox libjpeg-dev libtiff5-dev libjasper-dev libpng12-dev libavcodec-dev libavformat-dev libswscale-dev libv4l-dev libxvidcore-dev libx264-dev qt4-dev-tools libatlas-base-dev libgtk2.0-dev libgtk3.0 
+
+# This is needed to in order to pip3 install opencv-python==3.4.11.45
+# TODO: fix this
+RUN echo """
+[global]
+extra-index-url=https://www.piwheels.org/simple
+""" >> /root/.config/pip/pip.conf
 
 RUN pip3 install --upgrade pip setuptools wheel
 RUN pip3 install boto3
