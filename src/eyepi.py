@@ -306,13 +306,7 @@ def main(args):
     eyePiEventStream = EyePiEventStream(labels)
 
     #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
-    counter = 0
     while True:
-
-        counter += 1
-        if counter > 50:
-            print("breaking out of loop, hit 50")
-            break
 
         # Start timer (for calculating frame rate)
         t1 = cv2.getTickCount()
