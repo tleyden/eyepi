@@ -101,6 +101,7 @@ class EyePiEventStream(object):
         self.num_frames_per_video = 5  # at 1 FPS, this is 5s worth of video
         self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         self.state = 'IDLE'
+        self.last_person_detected_confidence = float(0)
 
         # Threadpool executor to keep from blocking the main thread.
         # Keep max workers at 1 so it's easier to reason about concurrent access to data.
@@ -147,6 +148,7 @@ class EyePiEventStream(object):
                 object_name = self.labels[int(event.detected_classes[i])]
                 if object_name.lower() == 'person':
                     found_person = True
+                    self.last_person_detected_confidence = event.detected_scores[i]
                     break
 
         return found_person
@@ -218,6 +220,36 @@ class EyePiEventStream(object):
                 object_name,
             )
             print("Finished uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
+
+            # Make the video capture file public
+            # TODO: use signed URLs instead of making the file public
+            self.s3_client.put_object_acl(ACL='public-read', Bucket=self.bucket_name, Key="%s" % (object_name))
+
+
+            # Create and upload alert meta file
+            public_url = f'https://{self.bucket_name}.s3.amazonaws.com/{object_name}'
+
+            alert_meta = {
+                "detected_object": "person",
+                "detection_confidence": float(self.last_person_detected_confidence),
+                "captured_video_url": public_url,
+            }
+
+            alert_meta_object_name = "{}.json".format(object_name)
+            alert_meta_filepath = "/tmp/{}".format(alert_meta_object_name)
+            f = open(alert_meta_filepath, "a")
+            f.write(json.dumps(alert_meta))
+            f.close()
+
+            print("Uploading {} -> {}/{} .. ".format(alert_meta_filepath, self.bucket_name, alert_meta_object_name))
+
+            response = self.s3_client.upload_file(
+                alert_meta_filepath,
+                self.bucket_name,
+                alert_meta_object_name,
+            )
+            print("Finished uploading {} -> {}/{} .. ".format(alert_meta_filepath, self.bucket_name, alert_meta_object_name))
+
         except Exception as e:
             print("Exception writing {} to s3: {}".format(object_name, str(e)))
             raise e
