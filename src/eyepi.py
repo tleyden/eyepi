@@ -82,7 +82,7 @@ def write_alert_hash_to_s3(alert_hash):
     object_name = "alert_{}.json".format(datetime.datetime.utcnow().timestamp())
 
     f = open(filename, "a")
-    json.dumps(alert_hash)
+    f.write(json.dumps(alert_hash))
     f.close()
 
     # Upload to s3
@@ -112,7 +112,7 @@ def possibly_trigger_alert(detected_object_name, detected_object_score):
 
     # Create a json file with the person detection score
     alert_hash = {
-        "person": detected_object_score
+        "person": float(detected_object_score)
     }
 
     # Write to S3
