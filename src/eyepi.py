@@ -72,6 +72,13 @@ class VideoStream:
         self.stopped = True
 
 
+def future_callback_error_logger(future):
+    try:
+        result = future.result()
+        print("Future result: {}".format(result))
+    except Exception as e:
+        print.exception("Executor Exception: {}".format(e))
+
 class EyePiDetectionEvent(object):
     """
     An event correlated with objects being detected in the video stream
@@ -184,12 +191,13 @@ class EyePiEventStream(object):
         print("Finished capturing video: {}".format(self.latest_capture_file_path))
 
         # Kick off thread to save video and json with signed s3 url and push both to s3
-        self.executor.submit(
+        future = self.executor.submit(
             self.push_event_to_s3,
             event=event,
             filename=self.latest_capture_file_name,
             object_name=self.latest_capture_file_name,
         )
+        future.add_done_callback(future_callback_error_logger)
 
         self.writer.release()  # TODO: should happen in self.executor() task
         self.num_captured_frames = 0
@@ -210,9 +218,9 @@ class EyePiEventStream(object):
                 object_name,
             )
             print("Finished uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
-        except ClientError as e:
+        except Exception as e:
             print("Exception writing {}} to s3: {}. response: {}".format(object_name, str(e), str(response)))
-
+            raise e
 
     def last_alert_sent_minutes(self):
         # TODO
