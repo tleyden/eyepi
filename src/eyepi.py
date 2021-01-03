@@ -142,11 +142,14 @@ class EyePiEventStream(object):
 
         self.num_captured_frames += 1
         self.writer.write(event.frame)
+        print("Captured frame {}/{}".format(self.num_captured_frames, self.num_frames_per_video))
 
         if self.num_captured_frames > self.num_frames_per_video:
             self.transition_to_idle_state()
 
     def transition_to_capturing_state(self, event):
+
+        print("Person detected!!  Capturing video")
 
         self.state = 'PERSON_DETECTED_CAPTURING_VIDEO'
         self.num_captured_frames = 0
@@ -164,6 +167,9 @@ class EyePiEventStream(object):
         )
 
     def transition_to_idle_state(self, event):
+
+        print("Finished capturing video, returning to IDLE state")
+
         self.state = 'IDLE'
         print("Finished capturing video: {}".format(self.latest_capture_file_path))
         self.writer.release()
@@ -335,7 +341,7 @@ def main(args):
         scores = interpreter.get_tensor(output_details[2]['index'])[0] # Confidence of detected objects
         #num = interpreter.get_tensor(output_details[3]['index'])[0]  # Total number of detected objects (inaccurate and not needed)
 
-        print("boxes: {} classes: {} scores: {}".format(boxes, classes, scores))
+        # print("boxes: {} classes: {} scores: {}".format(boxes, classes, scores))
 
         # Loop over all detections and draw detection box if confidence is above minimum threshold
         for i in range(len(scores)):
@@ -360,6 +366,7 @@ def main(args):
 
         # Draw framerate in corner of frame
         cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
+        print("Frame rate: {}".format(frame_rate_calc))
 
         # Process EyePiDetectionEvent
         eyePiEvent = EyePiDetectionEvent(
