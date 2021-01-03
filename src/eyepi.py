@@ -194,7 +194,7 @@ class EyePiEventStream(object):
         future = self.executor.submit(
             self.push_event_to_s3,
             event=event,
-            filename=self.self.latest_capture_file_path,
+            filename=self.latest_capture_file_path,
             object_name=self.latest_capture_file_name,
         )
         future.add_done_callback(future_callback_error_logger)
