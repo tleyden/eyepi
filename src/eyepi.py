@@ -219,24 +219,7 @@ class EyePiEventStream(object):
         print("done writing alert to s3")
 
 
-def main():
-
-    # Define and parse input arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
-                        required=True)
-    parser.add_argument('--graph', help='Name of the .tflite file, if different than detect.tflite',
-                        default='detect.tflite')
-    parser.add_argument('--labels', help='Name of the labelmap file, if different than labelmap.txt',
-                        default='labelmap.txt')
-    parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected objects',
-                        default=0.5)
-    parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
-                        default='')
-    parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
-                        action='store_true')
-
-    args = parser.parse_args()
+def main(args):
 
     MODEL_NAME = args.modeldir
     GRAPH_NAME = args.graph
@@ -401,4 +384,20 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # Define and parse input arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
+                        required=True)
+    parser.add_argument('--graph', help='Name of the .tflite file, if different than detect.tflite',
+                        default='detect.tflite')
+    parser.add_argument('--labels', help='Name of the labelmap file, if different than labelmap.txt',
+                        default='labelmap.txt')
+    parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected objects',
+                        default=0.5)
+    parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
+                        default='')
+    parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
+                        action='store_true')
+
+    args = parser.parse_args()
+    main(args)
