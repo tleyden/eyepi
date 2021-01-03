@@ -135,7 +135,7 @@ class EyePiEventStream(object):
         return found_person
 
     def process_event_idle_state(self, event):
-        if self.person_detected() == True:
+        if self.person_detected(event) == True:
             self.transition_to_capturing_state(event)
 
     def process_event_capturing_state(self, event):
