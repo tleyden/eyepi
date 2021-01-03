@@ -98,7 +98,7 @@ class EyePiEventStream(object):
         self.labels = labels
         self.min_detection_threshold = 0.72
         self.num_captured_frames = 0
-        self.num_frames_per_video = 30  # at 1 FPS, this is 30s worth of video
+        self.num_frames_per_video = 5  # at 1 FPS, this is 5s worth of video
         self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         self.state = 'IDLE'
 
@@ -219,7 +219,7 @@ class EyePiEventStream(object):
             )
             print("Finished uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
         except Exception as e:
-            print("Exception writing {}} to s3: {}".format(object_name, str(e)))
+            print("Exception writing {} to s3: {}".format(object_name, str(e)))
             raise e
 
     def last_alert_sent_minutes(self):
