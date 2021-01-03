@@ -75,8 +75,7 @@ class EyePiDetectionEvent(object):
     """
     An event correlated with objects being detected in the video stream
     """
-
-    def __index__(self, frame, detected_classes, detected_scores):
+    def __init__(self, frame, detected_classes, detected_scores):
         self.frame = frame
         self.detected_classes = detected_classes
         self.detected_scores = detected_scores
@@ -86,10 +85,14 @@ class EyePiEventStream(object):
     Handles overall EyePi functionality in terms of injesting event stream from
     camera and model
     """
-    def __index__(self, labels):
+    def __init__(self, labels):
         self.s3_client = boto3.client('s3')
         self.labels = labels
-        self.num_frames_captured = 0
+        self.min_detection_threshold = 0.72
+        self.num_captured_frames = 0
+        self.num_frames_per_video = 30  # at 1 FPS, this is 30s worth of video
+        self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        self.state = 'IDLE'
 
     def process_event(self, event):
         """
@@ -111,8 +114,60 @@ class EyePiEventStream(object):
             PERSON_DETECTED_CAPTURING_VIDEO
 
         """
-        # self.possibly_trigger_alert(event)
-        pass
+
+        if self.state == 'IDLE':
+            self.process_event_idle_state(event)
+        elif self.state == 'PERSON_DETECTED_CAPTURING_VIDEO':
+            self.process_event_capturing_state(event)
+        else:
+            raise Exception("Unknown state: {}".format(self.state))
+
+    def person_detected(self, event):
+        found_person = False
+        # Loop over all scores, find the corresponding object name, and see if it's a person
+        for i in range(len(event.detected_scores)):
+            if ((event.detected_scores[i] > self.min_detection_threshold) and (event.detected_scores[i] <= 1.0)):
+                object_name = self.labels[int(event.detected_classes[i])]
+                if object_name.lower() == 'person':
+                    found_person = True
+                    break
+
+        return found_person
+
+    def process_event_idle_state(self, event):
+        if self.person_detected() == True:
+            self.transition_to_capturing_state(event)
+
+    def process_event_capturing_state(self, event):
+
+        self.num_captured_frames += 1
+        self.writer.write(event.frame)
+
+        if self.num_captured_frames > self.num_frames_per_video:
+            self.transition_to_idle_state()
+
+    def transition_to_capturing_state(self, event):
+
+        self.state = 'PERSON_DETECTED_CAPTURING_VIDEO'
+        self.num_captured_frames = 0
+
+        self.latest_capture_file_name = "alert_{}.avi".format(datetime.datetime.utcnow().timestamp())
+        self.latest_capture_file_path = "/tmp/{}".format(self.latest_capture_file_name)
+        (h, w) = event.frame.shape[:2]
+
+        self.writer = cv2.VideoWriter(
+            self.latest_capture_file_path,
+            self.fourcc,
+            1, # 1 FPS -- should be tuned, but it worked on pyshell test
+            (w, h),
+            True,
+        )
+
+    def transition_to_idle_state(self, event):
+        self.state = 'IDLE'
+        print("Finished capturing video: {}".format(self.latest_capture_file_path))
+        self.writer.release()
+        self.num_captured_frames = 0
 
     def last_alert_sent_minutes(self):
         # TODO
@@ -177,7 +232,7 @@ def main():
     parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected objects',
                         default=0.5)
     parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
-                        default='1280x720')
+                        default='')
     parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
                         action='store_true')
 
@@ -320,6 +375,8 @@ def main():
                 cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
                 cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2) # Draw label text
 
+        # Draw framerate in corner of frame
+        cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
 
         # Process EyePiDetectionEvent
         eyePiEvent = EyePiDetectionEvent(
@@ -328,10 +385,6 @@ def main():
             detected_scores=scores
         )
         eyePiEventStream.process_event(eyePiEvent)
-
-
-        # Draw framerate in corner of frame
-        cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
 
         # Calculate framerate
         t2 = cv2.getTickCount()
