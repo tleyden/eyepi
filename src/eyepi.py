@@ -77,7 +77,7 @@ def future_callback_error_logger(future):
         result = future.result()
         print("Future result: {}".format(result))
     except Exception as e:
-        print.exception("Executor Exception: {}".format(e))
+        print("Executor Exception: {}".format(e))
 
 class EyePiDetectionEvent(object):
     """
@@ -194,7 +194,7 @@ class EyePiEventStream(object):
         future = self.executor.submit(
             self.push_event_to_s3,
             event=event,
-            filename=self.latest_capture_file_name,
+            filename=self.self.latest_capture_file_path,
             object_name=self.latest_capture_file_name,
         )
         future.add_done_callback(future_callback_error_logger)
@@ -219,7 +219,7 @@ class EyePiEventStream(object):
             )
             print("Finished uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
         except Exception as e:
-            print("Exception writing {}} to s3: {}. response: {}".format(object_name, str(e), str(response)))
+            print("Exception writing {}} to s3: {}".format(object_name, str(e)))
             raise e
 
     def last_alert_sent_minutes(self):
