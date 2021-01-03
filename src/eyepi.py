@@ -22,6 +22,12 @@ import sys
 import time
 from threading import Thread
 import importlib.util
+import boto3
+from botocore.exceptions import ClientError
+import json
+import datetime
+
+s3_client = boto3.client('s3')
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
 # Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
@@ -64,6 +70,57 @@ class VideoStream:
     def stop(self):
 	# Indicate that the camera and thread should be stopped
         self.stopped = True
+
+def last_alert_sent_minutes():
+    # TODO
+    return 0
+
+def write_alert_hash_to_s3(alert_hash):
+
+    filename = "/tmp/alert_hash.json"
+    bucket_name = "eyepi"
+    object_name = "alert_{}.json".format(datetime.datetime.utcnow().timestamp())
+
+    f = open(filename, "a")
+    json.dumps(alert_hash)
+    f.close()
+
+    # Upload to s3
+    print("writing alert to s3 bucket {} at {}".format(bucket_name, object_name))
+
+    try:
+        response = s3_client.upload_file(
+            filename,
+            bucket_name,
+            object_name,
+        )
+    except ClientError as e:
+        print("Exception writing alert hash to s3: {}. response: {}".format(str(e), str(response)))
+
+
+def possibly_trigger_alert(detected_object_name, detected_object_score):
+
+    # if it's not a person, ignore
+    if detected_object_name != 'person':
+        print("not a person, ignoring")
+        return
+
+    # if we've sent an alert in the last X minutes, ignore
+    if last_alert_sent_minutes() > 5:
+        print("already sent alert, ignoring")
+        return
+
+    # Create a json file with the person detection score
+    alert_hash = {
+        "person": detected_object_score
+    }
+
+    # Write to S3
+    print("writing alert to s3")
+    write_alert_hash_to_s3(alert_hash)
+    print("done writing alert to s3")
+
+
 
 # Define and parse input arguments
 parser = argparse.ArgumentParser()
@@ -200,6 +257,11 @@ while True:
     for i in range(len(scores)):
         if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
 
+            possibly_trigger_alert(
+                detected_object_name=labels[int(classes[i])],
+                detected_object_score=scores[i]
+            )
+
             # Get bounding box coordinates and draw box
             # Interpreter can return coordinates that are outside of image dimensions, need to force them to be within image using max() and min()
             ymin = int(max(1,(boxes[i][0] * imH)))
@@ -220,9 +282,6 @@ while True:
     # Draw framerate in corner of frame
     cv2.putText(frame,'FPS: {0:.2f}'.format(frame_rate_calc),(30,50),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2,cv2.LINE_AA)
 
-    # All the results have been drawn on the frame, so it's time to display it.
-    #cv2.imshow('Object detector', frame)
-
     # Calculate framerate
     t2 = cv2.getTickCount()
     time1 = (t2-t1)/freq
@@ -233,5 +292,4 @@ while True:
         break
 
 # Clean up
-#cv2.destroyAllWindows()
 videostream.stop()
