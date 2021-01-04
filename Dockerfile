@@ -28,9 +28,12 @@ RUN pip3 install boto3
 
 # Need to get an older version of OpenCV because version 4 has errors - see https://github.com/EdjeElectronics/TensorFlow-Lite-Object-Detection-on-Android-and-Raspberry-Pi/blob/master/get_pi_requirements.sh
 RUN pip3 install opencv-python==3.4.11.45
-# RUN pip3 install opencv-python==3.4.6.27
 
 # Get packages required for TensorFlow
 # Using the tflite_runtime packages available at https://www.tensorflow.org/lite/guide/python
-# Will change to just 'pip3 install tensorflow' once newer versions of TF are added to piwheels
+# TODO: change to just 'pip3 install tensorflow' once newer versions of TF are added to piwheels
 RUN pip3 install https://github.com/google-coral/pycoral/releases/download/release-frogfish/tflite_runtime-2.5.0-cp37-cp37m-linux_armv7l.whl
+
+RUN mkdir /root/coco_ssd_mobilenet
+RUN wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip -O /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip
+RUN unzip /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip -d /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29

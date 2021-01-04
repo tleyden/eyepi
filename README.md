@@ -12,9 +12,24 @@ Send at most one notification per 5 minute period.
 * Raspbian Buster OS
 * AWS Account with Admin privileges
 
+## Setup Raspberry Pi
+
+* [Enable the camera](https://www.raspberrypi.org/documentation/configuration/camera.md)
+
 ## Install
 
-### Basic Raspberry Pi setup
+
+## Install docker engine
+
+Install docker engine using [the convenience script](https://docs.docker.com/engine/install/debian/#install-using-the-convenience-script).
+
+Add the pi and greengrass users to the docker group:
+
+```
+$ sudo usermod -aG docker pi
+$ sudo usermod -aG docker gg_user
+```
+
 
 ### Install AWS Greengrass core v2
 
@@ -34,16 +49,7 @@ Follow steps in:
 
 1. https://docs.aws.amazon.com/greengrass/v2/developerguide/getting-started.html
 
-## Install docker engine
 
-Install docker engine using [the convenience script](https://docs.docker.com/engine/install/debian/#install-using-the-convenience-script).
-
-Add the pi and greengrass users to the docker group:
-
-```
-$ sudo usermod -aG docker pi
-$ sudo usermod -aG docker gg_user
-```
 
 ## References
 
