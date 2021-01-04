@@ -17,7 +17,6 @@ RUN apt-get update && apt-get install -y emacs25-nox \
     libx264-dev \
     qt4-dev-tools \
     libatlas-base-dev \
-    libgtk2.0-dev \
     libgtk3.0
 
 # This is needed to in order to pip3 install opencv-python==3.4.11.45
