@@ -34,14 +34,13 @@ $ cd eyepi
 
 Install docker engine using [the convenience script](https://docs.docker.com/engine/install/debian/#install-using-the-convenience-script).
 
-Add the pi and greengrass users to the docker group:
+Add the pi user to the docker group:
 
 ```
 $ sudo usermod -aG docker pi
-$ sudo usermod -aG docker gg_user
 ```
 
-### Build Docker image
+### Build Docker image from Dockerfile
 
 ```
 $ docker build . -t eyepi
@@ -50,18 +49,28 @@ $ docker build . -t eyepi
 Make sure you can run the docker image:
 
 ```
-$ docker run -it --device=/dev/video0:/dev/video0 eyepi
+$ docker run -it --device=/dev/video0:/dev/video0 eyepi eyepi.py --s3bucket eyepi
 ```
 
 At this point you should see an error: `botocore.exceptions.NoCredentialsError: Unable to locate credentials` since you aren't passing in the AWS creds.
 
 ### Setup AWS Cloud
 
+#### IAM User
+
 #### S3 Bucket
 
-#### SNS topic
+#### SNS topic + subscription
 
 #### Lambda function
+
+### Run eyepi docker container
+
+```
+$ docker run -it -e AWS_KEY -e AWS_SECRET_KEY --device=/dev/video0:/dev/video0 eyepi eyepi.py --s3bucket <your-bucket-name>
+```
+
+### Verify that it's working
 
 ## References
 
