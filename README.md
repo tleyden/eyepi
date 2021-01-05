@@ -6,6 +6,9 @@ When a person is detected by the model send a notification with a 5 second video
 
 Send at most one notification per 5 minute period.
 
+![image](https://user-images.githubusercontent.com/296876/103612582-9e8f6700-4ed9-11eb-9266-f7e5ec927d9e.png)
+
+
 ## Requirements
 
 * Raspberry Pi 3 or 4
@@ -44,7 +47,13 @@ $ sudo usermod -aG docker gg_user
 $ docker build . -t eyepi
 ```
 
-Make sure you can run the docker image .. TODO
+Make sure you can run the docker image:
+
+```
+$ docker run -it --device=/dev/video0:/dev/video0 eyepi
+```
+
+At this point you should see an error: `botocore.exceptions.NoCredentialsError: Unable to locate credentials` since you aren't passing in the AWS creds.
 
 ### Setup AWS Cloud
 
@@ -53,24 +62,6 @@ Make sure you can run the docker image .. TODO
 #### SNS topic
 
 #### Lambda function
-
-### (Optional) Install AWS Greengrass core v2
-
-AWS Greengrass is an IoT framework that helps handle authentication issues between the device and the cloud.  It also handles Over-the-air updates.
-
-#### Basic device setup pre-requisites for Greengrass
-
-https://docs.aws.amazon.com/greengrass/latest/developerguide/setup-filter.rpi.html (and https://www.youtube.com/watch?v=LqOEfjygID0&t=440s)
-
-NOTE: I installed java8 via `sudo apt install openjdk-8-jdk`, but the greengrass dependency checker can't find it.  Also, I think I already had java 11 installed because `java --version` returns `openjdk 11.0.9.1 2020-11-04`.  Fixed by running ` update-alternatives --config java` and selecting java 8.
-
-#### Greengrass core v2
-
-Follow steps in:
-
-1. https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-core-v2.html
-
-1. https://docs.aws.amazon.com/greengrass/v2/developerguide/getting-started.html
 
 ## References
 
