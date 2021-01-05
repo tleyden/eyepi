@@ -18,6 +18,14 @@ Send at most one notification per 5 minute period.
 
 ## Install
 
+### Clone repo
+
+On the raspberry pi, `git clone` this repo.
+
+```
+$ git clone git@github.com:tleyden/eyepi.git
+$ cd eyepi
+```
 
 ### Install docker engine
 
@@ -29,6 +37,14 @@ Add the pi and greengrass users to the docker group:
 $ sudo usermod -aG docker pi
 $ sudo usermod -aG docker gg_user
 ```
+
+### Build Docker image
+
+```
+$ docker build . -t eyepi
+```
+
+Make sure you can run the docker image .. TODO
 
 ### Setup AWS Cloud
 

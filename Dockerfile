@@ -38,10 +38,10 @@ RUN mkdir /root/coco_ssd_mobilenet
 RUN wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip -O /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip
 RUN unzip /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip -d /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29
 
-# TODO: copy in eyepi.py script
+# Copy in eyepi.py script
+COPY eyepi.py /root/eyepi.py
 
-# TODO: set default entrypoint to be python3
-
-# TODO: set default cmd to run eyepi.py script
+CMD ["/root/eyepi.py --modeldir /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29"]
+ENTRYPOINT ["python3"]
 
 # TODO: parameterize target s3 bucket name
