@@ -39,7 +39,7 @@ RUN wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/co
 RUN unzip /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip -d /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29
 
 # Copy in eyepi.py script
-COPY eyepi.py /root/eyepi.py
+COPY src/eyepi.py /root/eyepi.py
 
 CMD ["/root/eyepi.py --modeldir /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29"]
 ENTRYPOINT ["python3"]
