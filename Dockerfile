@@ -41,7 +41,7 @@ RUN unzip /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zi
 # Copy in eyepi.py script
 COPY src/eyepi.py /root/eyepi.py
 
-CMD ["/root/eyepi.py --modeldir /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29"]
+CMD ["/root/eyepi.py", "--modeldir", "/root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29"]
 ENTRYPOINT ["python3"]
 
 # TODO: parameterize target s3 bucket name
