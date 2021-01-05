@@ -19,7 +19,7 @@ Send at most one notification per 5 minute period.
 ## Install
 
 
-## Install docker engine
+### Install docker engine
 
 Install docker engine using [the convenience script](https://docs.docker.com/engine/install/debian/#install-using-the-convenience-script).
 
@@ -30,8 +30,15 @@ $ sudo usermod -aG docker pi
 $ sudo usermod -aG docker gg_user
 ```
 
+### Setup AWS Cloud
 
-### Install AWS Greengrass core v2
+#### S3 Bucket
+
+#### SNS topic
+
+#### Lambda function
+
+### (Optional) Install AWS Greengrass core v2
 
 AWS Greengrass is an IoT framework that helps handle authentication issues between the device and the cloud.  It also handles Over-the-air updates.
 
@@ -48,8 +55,6 @@ Follow steps in:
 1. https://docs.aws.amazon.com/greengrass/v2/developerguide/install-greengrass-core-v2.html
 
 1. https://docs.aws.amazon.com/greengrass/v2/developerguide/getting-started.html
-
-
 
 ## References
 
