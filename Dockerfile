@@ -34,14 +34,15 @@ RUN pip3 install opencv-python==3.4.11.45
 # TODO: change to just 'pip3 install tensorflow' once newer versions of TF are added to piwheels
 RUN pip3 install https://github.com/google-coral/pycoral/releases/download/release-frogfish/tflite_runtime-2.5.0-cp37-cp37m-linux_armv7l.whl
 
-RUN mkdir /root/coco_ssd_mobilenet
-RUN wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip -O /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip
-RUN unzip /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip -d /root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29
+RUN mkdir /root/modeldir
+RUN wget https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip -O /tmp/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip
+RUN unzip /tmp/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip -d /root/modeldir
+RUN rm -f /tmp/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip
 
 # Copy in eyepi.py script
 COPY src/eyepi.py /root/eyepi.py
 
-CMD ["/root/eyepi.py", "--modeldir", "/root/coco_ssd_mobilenet/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29"]
+WORKDIR /root
 ENTRYPOINT ["python3"]
 
 # TODO: parameterize target s3 bucket name
