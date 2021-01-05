@@ -109,6 +109,13 @@ class EyePiEventStream(object):
 
         self.bucket_name = "eyepi"
 
+    def validate_s3_creds(self):
+        """
+        Fail-fast and make sure we can at least list the s3 buckets
+        """
+        self.s3_client.list_buckets()
+        print("S3 creds OK")
+
     def shutdown(self):
         self.executor.shutdown(wait=True)
 
@@ -337,6 +344,7 @@ def main(args):
     time.sleep(1)
 
     eyePiEventStream = EyePiEventStream(labels)
+    eyePiEventStream.validate_s3_creds()
 
     #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
     while True:
