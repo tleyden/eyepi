@@ -93,7 +93,7 @@ class EyePiEventStream(object):
     Handles overall EyePi functionality in terms of injesting event stream from
     camera and model
     """
-    def __init__(self, labels):
+    def __init__(self, labels, s3bucket_name):
         self.s3_client = boto3.client('s3')
         self.labels = labels
         self.min_detection_threshold = 0.72
@@ -107,7 +107,7 @@ class EyePiEventStream(object):
         # Keep max workers at 1 so it's easier to reason about concurrent access to data.
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
-        self.bucket_name = "eyepi"
+        self.bucket_name = s3bucket_name
 
     def validate_s3_creds(self):
         """
@@ -274,6 +274,7 @@ def main(args):
     resW, resH = args.resolution.split('x')
     imW, imH = int(resW), int(resH)
     use_TPU = args.edgetpu
+    s3bucket_name = args.s3bucket
 
     # Import TensorFlow libraries
     # If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
@@ -343,7 +344,11 @@ def main(args):
     videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
     time.sleep(1)
 
-    eyePiEventStream = EyePiEventStream(labels)
+    # Create the object that will process video frames and recognition results and upload to s3 and send alerts
+    eyePiEventStream = EyePiEventStream(
+        labels=labels,
+        s3bucket_name=s3bucket_name,
+    )
     eyePiEventStream.validate_s3_creds()
 
     #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
@@ -428,8 +433,10 @@ if __name__ == "__main__":
 
     # Define and parse input arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
+    parser.add_argument('--s3bucket', help='The name of the s3 bucket where capture videos should be uploaded to',
                         required=True)
+    parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
+                        default='modeldir')
     parser.add_argument('--graph', help='Name of the .tflite file, if different than detect.tflite',
                         default='detect.tflite')
     parser.add_argument('--labels', help='Name of the labelmap file, if different than labelmap.txt',
