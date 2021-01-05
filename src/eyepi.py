@@ -258,52 +258,6 @@ class EyePiEventStream(object):
         # TODO
         return 0
 
-    def write_alert_hash_to_s3(self, alert_hash):
-
-        filename = "/tmp/alert_hash.json"
-        bucket_name = "eyepi"
-        object_name = "alert_{}.json".format(datetime.datetime.utcnow().timestamp())
-
-        f = open(filename, "a")
-        f.write(json.dumps(alert_hash))
-        f.close()
-
-        # Upload to s3
-        print("writing alert to s3 bucket {} at {}".format(bucket_name, object_name))
-
-        try:
-            response = self.s3_client.upload_file(
-                filename,
-                bucket_name,
-                object_name,
-            )
-        except ClientError as e:
-            print("Exception writing alert hash to s3: {}. response: {}".format(str(e), str(response)))
-
-
-    def possibly_trigger_alert(self, event):
-
-        # if it's not a person, ignore
-        if event.detected_object_name != 'person':
-            print("not a person, ignoring")
-            return
-
-        # if we've sent an alert in the last X minutes, ignore
-        if self.last_alert_sent_minutes() > 5:
-            print("already sent alert, ignoring")
-            return
-
-        # Create a json file with the person detection score
-        alert_hash = {
-            "person": float(event.detected_object_score)
-        }
-
-        # Write to S3
-        print("writing alert to s3")
-        self.write_alert_hash_to_s3(alert_hash)
-        print("done writing alert to s3")
-
-
 def main(args):
 
     MODEL_NAME = args.modeldir
