@@ -1,8 +1,8 @@
+# eyepi
 
 Security camera object detection software that runs on a Raspberry Pi.
 
 When a person is detected by the model it sends an email/text notification with a 5 second video clip stored on AWS S3.
-
 
 ![image](https://user-images.githubusercontent.com/296876/103612582-9e8f6700-4ed9-11eb-9266-f7e5ec927d9e.png)
 
@@ -19,15 +19,13 @@ Table of Contents
          * [Setup AWS Cloud](#setup-aws-cloud)
             * [IAM User with S3FullAccess](#iam-user-with-s3fullaccess)
             * [S3 Bucket](#s3-bucket)
-               * [1) Allow public access](#1-allow-public-access)
-               * [2) Use the default ACL](#2-use-the-default-acl)
             * [SNS topic + subscription](#sns-topic--subscription)
             * [Lambda function](#lambda-function)
          * [Run eyepi docker container](#run-eyepi-docker-container)
-         * [Verify that it's working](#verify-that-its-working)
-         * [Run it in the background](#run-it-in-the-background)
+      * [Test it out](#test-it-out)
+      * [Run as a daemon process in the background](#run-as-a-daemon-process-in-the-background)
       * [References](#references)
-
+         
 ## Requirements
 
 * Raspberry Pi 3 or 4
@@ -97,11 +95,11 @@ Create a new IAM User called "eyepi" and associate S3FullAccess permissions.  (T
 
 Create a new bucket with a globally unique name - for example `<your-email>-eyepi`, and settings:
 
-##### 1) Allow public access
+Step 1: Allow public access
 
 ![Screen Shot 2021-01-06 at 10 25 12 PM](https://user-images.githubusercontent.com/296876/103858953-15f5ff80-506e-11eb-9cf5-96ebecfdc40e.png)
 
-##### 2) Use the default ACL 
+Step 2: Use the default ACL 
 
 ![Screen Shot 2021-01-06 at 10 25 20 PM](https://user-images.githubusercontent.com/296876/103858949-14c4d280-506e-11eb-81bf-1a360715f114.png)
 
@@ -152,7 +150,7 @@ Now launch the docker container
 $ docker run -it -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY --device=/dev/video0:/dev/video0 eyepi eyepi.py --s3bucket <your-bucket-name>
 ```
 
-### Verify that it's working
+## Test it out
 
 You should see output like:
 
@@ -183,7 +181,7 @@ and you should receive an email alert with subject "EyePi person detected" and t
 
 Clicking the link on iOS Safari should play it directly.
 
-### Run it in the background
+## Run as a daemon process in the background
 
 Kill the docker container previously launched, and re-run and replace the arguments:
 
