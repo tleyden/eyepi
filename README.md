@@ -15,9 +15,18 @@ Send at most one notification per 5 minute period.
 * Raspbian Buster OS (Raspbian GNU/Linux 10)
 * AWS Account
 
-## Setup Raspberry Pi
+## Setup Raspberry Pi (Headless)
 
-* [Enable the camera](https://www.raspberrypi.org/documentation/configuration/camera.md)
+* Download *Raspberry Pi OS with desktop and recommended software* from the [Raspi Downloads](https://www.raspberrypi.org/software/operating-systems/) page
+* Burn the image to a microsd card using Balena Etcher using [these instructions](https://youtu.be/PijX8GDco-g)
+* Remove and re-insert the sd card reader to your mac to force it to mound the sd card
+* Add an empty `ssh` file in the root of the mounted sd card.  See [Enable SSH on a headless Raspberry Pi (add file to SD card on another machine)](https://www.raspberrypi.org/documentation/remote-access/ssh/)
+* Tell it how to connect to your wifi by adding a `wpa_supplicant.conf` file -- see [Setting up wireless networking
+](https://www.raspberrypi.org/documentation/configuration/wireless/headless.md) 
+* Unmount sd card and insert into pi, and boot the pi
+* [Find the IP address of your pi](https://www.raspberrypi.org/documentation/remote-access/ip-address.md)
+* ssh into your pi with username: `pi` password: `raspberry` -- see [Raspberry Pi forum post](https://www.raspberrypi.org/forums/viewtopic.php?t=173195)
+* [Enable the camera](https://www.raspberrypi.org/documentation/configuration/camera.md) - requires restart
 
 ## Install
 
