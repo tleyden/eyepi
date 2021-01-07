@@ -56,12 +56,14 @@ At this point you should see an error: `botocore.exceptions.NoCredentialsError: 
 
 ### Setup AWS Cloud
 
-#### IAM User
+#### IAM User with S3FullAccess
 
 Create a new IAM User called "eyepi" and associate S3FullAccess permissions.  (TODO: limit permissions)
 
 ![Screen Shot 2021-01-06 at 10 20 29 PM](https://user-images.githubusercontent.com/296876/103858698-ab44c400-506d-11eb-8957-e7db7d86951b.png)
 
+* Disallow web console access
+* Generate an access key / secret key pair and store these somewhere secure, you will need in a later step
 
 #### S3 Bucket
 
@@ -109,11 +111,69 @@ Step 6: In the lambda configuration section, add the SNS ARN as an environment v
 
 ### Run eyepi docker container
 
+First set the boto env variables using the access key and secret key for the IAM user created above (without the `{}`'s):
+
+````
+$ export AWS_ACCESS_KEY_ID="{your-aws-access-key}"
+$ export AWS_SECRET_ACCESS_KEY="{your-secret-key}"
+````
+
+Now launch the docker container
+
 ```
-$ docker run -it -e AWS_KEY -e AWS_SECRET_KEY --device=/dev/video0:/dev/video0 eyepi eyepi.py --s3bucket <your-bucket-name>
+$ docker run -it -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY --device=/dev/video0:/dev/video0 eyepi eyepi.py --s3bucket <your-bucket-name>
 ```
 
 ### Verify that it's working
+
+You should see output like:
+
+```
+S3 creds OK
+read a frame
+Frame rate: 1
+read a frame
+Frame rate: 4.521088120478825
+```
+
+Now walk in front of the camera for a few seconds, and you should see this output:
+
+```
+Person detected!!  Capturing video
+read a frame
+...
+Captured frame 6/5
+Finished capturing video, returning to IDLE state
+Finished capturing video: /tmp/alert_1610002882.726963.avi
+Uploading /tmp/alert_1610002882.726963.avi -> eyepi/alert_1610002882.726963.avi ..
+Finished uploading /tmp/alert_1610002882.726963.avi -> eyepi/alert_1610002882.726963.avi ..
+```
+
+and you should receive an email alert with subject "EyePi person detected" and text:
+
+> person detected with 0.73828125% confidence.  Watch captured video: https://<your-bucket>.s3.amazonaws.com/alert_1610002882.726963.avi
+
+Clicking the link on iOS Safari should play it directly.
+
+### Run it in the background
+
+Kill the docker container previously launched, and re-run and replace the arguments:
+
+```
+-it
+```
+
+with:
+
+```
+-itd
+```
+
+Where the `-d` tells docker to daemonize the process.  It will show the container id, eg: `ce43d7b59c`, and you can view the logs with:
+
+```
+$ docker logs -f ce43d7b59c
+```
 
 ## References
 
