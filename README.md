@@ -1,13 +1,32 @@
-# eyepi
 
-Security camera software that runs on Raspberry Pi with people detection
+Security camera object detection software that runs on a Raspberry Pi.
 
-When a person is detected by the model send a notification with a 5 second video clip stored on AWS S3.
+When a person is detected by the model it sends an email/text notification with a 5 second video clip stored on AWS S3.
 
-Send at most one notification per 5 minute period.
 
 ![image](https://user-images.githubusercontent.com/296876/103612582-9e8f6700-4ed9-11eb-9266-f7e5ec927d9e.png)
 
+Table of Contents
+=================
+
+   * [eyepi](#eyepi)
+      * [Requirements](#requirements)
+      * [Setup Raspberry Pi (Headless)](#setup-raspberry-pi-headless)
+      * [Install Eyepi](#install-eyepi)
+         * [Clone repo](#clone-repo)
+         * [Install docker engine](#install-docker-engine)
+         * [Build Eyepi Docker image from Dockerfile](#build-eyepi-docker-image-from-dockerfile)
+         * [Setup AWS Cloud](#setup-aws-cloud)
+            * [IAM User with S3FullAccess](#iam-user-with-s3fullaccess)
+            * [S3 Bucket](#s3-bucket)
+               * [1) Allow public access](#1-allow-public-access)
+               * [2) Use the default ACL](#2-use-the-default-acl)
+            * [SNS topic + subscription](#sns-topic--subscription)
+            * [Lambda function](#lambda-function)
+         * [Run eyepi docker container](#run-eyepi-docker-container)
+         * [Verify that it's working](#verify-that-its-working)
+         * [Run it in the background](#run-it-in-the-background)
+      * [References](#references)
 
 ## Requirements
 
@@ -28,7 +47,7 @@ Send at most one notification per 5 minute period.
 * ssh into your pi with username: `pi` password: `raspberry` -- see [Raspberry Pi forum post](https://www.raspberrypi.org/forums/viewtopic.php?t=173195)
 * [Enable the camera](https://www.raspberrypi.org/documentation/configuration/camera.md) - requires restart
 
-## Install
+## Install Eyepi
 
 ### Clone repo
 
@@ -61,7 +80,7 @@ Make sure you can run the docker image:
 $ docker run -it --device=/dev/video0:/dev/video0 eyepi eyepi.py --s3bucket eyepi
 ```
 
-At this point you should see an error: `botocore.exceptions.NoCredentialsError: Unable to locate credentials` since you aren't passing in the AWS creds.
+At this point you should see an error: `botocore.exceptions.NoCredentialsError: Unable to locate credentials` since you aren't passing in the AWS creds yet.  That's covered in a later step.
 
 ### Setup AWS Cloud
 
