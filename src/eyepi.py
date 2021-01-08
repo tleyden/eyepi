@@ -1,275 +1,19 @@
-######## Webcam Object Detection Using Tensorflow-trained Classifier #########
-#
-# Author: Evan Juras
-# Date: 10/27/19
-# Description:
-# This program uses a TensorFlow Lite model to perform object detection on a live webcam
-# feed. It draws boxes and scores around the objects of interest in each frame from the
-# webcam. To improve FPS, the webcam object runs in a separate thread from the main program.
-# This script will work with either a Picamera or regular USB webcam.
-#
-# This code is based off the TensorFlow Lite image classification example at:
-# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/examples/python/label_image.py
-#
-# I added my own method of drawing boxes and labels using OpenCV.
 
-# Import packages
 import os
 import argparse
 import cv2
 import numpy as np
-import sys
 import time
 from threading import Thread
 import importlib.util
 import boto3
-from botocore.exceptions import ClientError
 import json
 import datetime
 import concurrent.futures
 
-
-# Define VideoStream class to handle streaming of video from webcam in separate processing thread
-# Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
-class VideoStream:
-    """Camera object that controls video streaming from the Picamera"""
-    def __init__(self,resolution=(640,480),framerate=30):
-        # Initialize the PiCamera and the camera image stream
-        self.stream = cv2.VideoCapture(0)
-        ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-        ret = self.stream.set(3,resolution[0])
-        ret = self.stream.set(4,resolution[1])
-
-        # Read first frame from the stream
-        (self.grabbed, self.frame) = self.stream.read()
-
-	# Variable to control when the camera is stopped
-        self.stopped = False
-
-    def start(self):
-	# Start the thread that reads frames from the video stream
-        Thread(target=self.update,args=()).start()
-        return self
-
-    def update(self):
-        # Keep looping indefinitely until the thread is stopped
-        while True:
-            # If the camera is stopped, stop the thread
-            if self.stopped:
-                # Close camera resources
-                self.stream.release()
-                return
-
-            # Otherwise, grab the next frame from the stream
-            (self.grabbed, self.frame) = self.stream.read()
-
-    def read(self):
-	# Return the most recent frame
-        return self.frame
-
-    def stop(self):
-	# Indicate that the camera and thread should be stopped
-        self.stopped = True
-
-
-def future_callback_error_logger(future):
-    try:
-        result = future.result()
-        print("Future result: {}".format(result))
-    except Exception as e:
-        print("Executor Exception: {}".format(e))
-
-class EyePiDetectionEvent(object):
-    """
-    An event correlated with objects being detected in the video stream
-    """
-    def __init__(self, frame, detected_classes, detected_scores):
-        self.frame = frame
-        self.detected_classes = detected_classes
-        self.detected_scores = detected_scores
-
-class EyePiEventStream(object):
-    """
-    Handles overall EyePi functionality in terms of injesting event stream from
-    camera and model
-
-    labels: the full list of labels known by the model
-    s3bucket_name: the target s3 bucket where video clips should be written
-    target_object: the object that should be alerted on, model-dependent and should be present in labels
-    min_conf_threshold: minimum confidence threshold for detection, a number between 0.0 - 1.0
-    """
-    def __init__(self, labels, s3bucket_name, target_object, min_conf_threshold):
-        self.s3_client = boto3.client('s3')
-        self.labels = labels
-        self.target_object = target_object  # TODO: validate that the target_object is present in labels
-        self.min_conf_threshold = min_conf_threshold
-        self.num_captured_frames = 0
-        self.num_frames_per_video = 5  # at 1 FPS, this is 5s worth of video
-        self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-        self.state = 'IDLE'
-        self.last_object_detected_confidence = float(0)
-
-        # Threadpool executor to keep from blocking the main thread.
-        # Keep max workers at 1 so it's easier to reason about concurrent access to data.
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-
-        self.bucket_name = s3bucket_name
-
-    def validate_s3_creds(self):
-        """
-        Fail-fast and make sure we can at least list the s3 buckets
-        """
-        self.s3_client.list_buckets()
-        print("S3 creds OK")
-
-    def shutdown(self):
-        self.executor.shutdown(wait=True)
-
-    def process_event(self, event):
-        """
-
-        After the target object is detected with a high enough threshold (eg, 72%), it will
-        enter the OBJECT_DETECTED_CAPTURING_VIDEO state and:
-
-        - Capture each video frame to a buffer in memory for the next 5 seconds
-        - Trigger the state transition back to the idle state, which will do the following:
-            - Kick off a separate thread so we don't block the VideoStream thread
-            - Collect the frames from the buffer and write to a file
-            - Upload the video file to s3 (alert_123.mp4)
-            - Generate a pre-signed url for the video file
-            - Upload an alert_123.txt file like "A person was detected with 72% accuracy: {presigned_url} to s3
-
-        States:
-
-            IDLE
-            OBJECT_DETECTED_CAPTURING_VIDEO
-
-        """
-
-        if self.state == 'IDLE':
-            self.process_event_idle_state(event)
-        elif self.state == 'OBJECT_DETECTED_CAPTURING_VIDEO':
-            self.process_event_capturing_state(event)
-        else:
-            raise Exception("Unknown state: {}".format(self.state))
-
-    def object_detected(self, event):
-        found_object = False
-        # Loop over all scores, find the corresponding object name, and see if it's the object we care about
-        for i in range(len(event.detected_scores)):
-            if ((event.detected_scores[i] > self.min_conf_threshold) and (event.detected_scores[i] <= 1.0)):
-                object_name = self.labels[int(event.detected_classes[i])]
-                if object_name.lower() == self.target_object:
-                    found_object = True
-                    self.last_object_detected_confidence = event.detected_scores[i]
-                    break
-
-        return found_object
-
-    def process_event_idle_state(self, event):
-        if self.object_detected(event) == True:
-            self.transition_to_capturing_state(event)
-
-    def process_event_capturing_state(self, event):
-
-        self.num_captured_frames += 1
-        self.writer.write(event.frame)  # TODO: this should happen in self.executor() so it doesn't block the main thread
-        print("Captured frame {}/{}".format(self.num_captured_frames, self.num_frames_per_video))
-
-        if self.num_captured_frames > self.num_frames_per_video:
-            self.transition_to_idle_state(event)
-
-    def transition_to_capturing_state(self, event):
-
-        print(f"{self.target_object} detected!!  Capturing video")
-
-        self.state = 'OBJECT_DETECTED_CAPTURING_VIDEO'
-        self.num_captured_frames = 0
-
-        self.latest_capture_file_name = "alert_{}.avi".format(datetime.datetime.utcnow().timestamp())
-        self.latest_capture_file_path = "/tmp/{}".format(self.latest_capture_file_name)
-        (h, w) = event.frame.shape[:2]
-
-        self.writer = cv2.VideoWriter(
-            self.latest_capture_file_path,
-            self.fourcc,
-            1, # 1 FPS -- should be tuned, but it worked on pyshell test
-            (w, h),
-            True,
-        )
-
-    def transition_to_idle_state(self, event):
-
-        print("Finished capturing video, returning to IDLE state")
-
-        self.state = 'IDLE'
-        print("Finished capturing video: {}".format(self.latest_capture_file_path))
-
-        # Kick off thread to save video and json with signed s3 url and push both to s3
-        future = self.executor.submit(
-            self.push_event_to_s3,
-            event=event,
-            filename=self.latest_capture_file_path,
-            object_name=self.latest_capture_file_name,
-        )
-        future.add_done_callback(future_callback_error_logger)
-
-        self.writer.release()  # TODO: should happen in self.executor() task
-        self.num_captured_frames = 0
-
-    def push_event_to_s3(self, event, filename, object_name):
-        """
-        - Push video to s3
-        - Generate signed URL for video
-        - Write an alert file that says "Person detected .. <link to video>"
-        - Write alert file to s3
-        """
-
-        try:
-            print("Uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
-            response = self.s3_client.upload_file(
-                filename,
-                self.bucket_name,
-                object_name,
-            )
-            print("Finished uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
-
-            # Make the video capture file public
-            # TODO: use signed URLs instead of making the file public
-            self.s3_client.put_object_acl(ACL='public-read', Bucket=self.bucket_name, Key="%s" % (object_name))
-
-
-            # Create and upload alert meta file
-            public_url = f'https://{self.bucket_name}.s3.amazonaws.com/{object_name}'
-
-            alert_meta = {
-                "detected_object": self.target_object,
-                "detection_confidence": float(self.last_object_detected_confidence),
-                "captured_video_url": public_url,
-            }
-
-            alert_meta_object_name = "{}.json".format(object_name)
-            alert_meta_filepath = "/tmp/{}".format(alert_meta_object_name)
-            f = open(alert_meta_filepath, "a")
-            f.write(json.dumps(alert_meta))
-            f.close()
-
-            print("Uploading {} -> {}/{} .. ".format(alert_meta_filepath, self.bucket_name, alert_meta_object_name))
-
-            response = self.s3_client.upload_file(
-                alert_meta_filepath,
-                self.bucket_name,
-                alert_meta_object_name,
-            )
-            print("Finished uploading {} -> {}/{} .. ".format(alert_meta_filepath, self.bucket_name, alert_meta_object_name))
-
-        except Exception as e:
-            print("Exception writing {} to s3: {}".format(object_name, str(e)))
-            raise e
-
-    def last_alert_sent_minutes(self):
-        # TODO
-        return 0
+"""
+Eyepi - object detection on Raspberry Pi with Tensorflow + notification via AWS cloud. 
+"""
 
 def main(args):
 
@@ -357,9 +101,7 @@ def main(args):
         target_object=args.targetobject,
         min_conf_threshold=min_conf_threshold,
     )
-    eyePiEventStream.validate_s3_creds()
 
-    #for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
     while True:
 
         # Start timer (for calculating frame rate)
@@ -367,7 +109,6 @@ def main(args):
 
         # Grab frame from video stream
         frame1 = videostream.read()
-        print("read a frame")
 
         # Acquire frame and resize to expected shape [1xHxWx3]
         frame = frame1.copy()
@@ -435,7 +176,265 @@ def main(args):
     videostream.stop()
     eyePiEventStream.shutdown()
 
+class VideoStream:
+    """
+    Define VideoStream class to handle streaming of video from webcam in separate processing thread
+    """
+    def __init__(self,resolution=(640,480),framerate=30):
+        # Initialize the PiCamera and the camera image stream
+        self.stream = cv2.VideoCapture(0)
+        ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        ret = self.stream.set(3,resolution[0])
+        ret = self.stream.set(4,resolution[1])
 
+        # Read first frame from the stream
+        (self.grabbed, self.frame) = self.stream.read()
+
+	# Variable to control when the camera is stopped
+        self.stopped = False
+
+    def start(self):
+	# Start the thread that reads frames from the video stream
+        Thread(target=self.update,args=()).start()
+        return self
+
+    def update(self):
+        # Keep looping indefinitely until the thread is stopped
+        while True:
+            # If the camera is stopped, stop the thread
+            if self.stopped:
+                # Close camera resources
+                self.stream.release()
+                return
+
+            # Otherwise, grab the next frame from the stream
+            (self.grabbed, self.frame) = self.stream.read()
+
+    def read(self):
+	# Return the most recent frame
+        return self.frame
+
+    def stop(self):
+	# Indicate that the camera and thread should be stopped
+        self.stopped = True
+
+
+
+
+class EyePiDetectionEvent(object):
+    """
+    An event correlated with objects being detected in the video stream
+    """
+    def __init__(self, frame, detected_classes, detected_scores):
+        self.frame = frame
+        self.detected_classes = detected_classes
+        self.detected_scores = detected_scores
+
+class EyePiEventStream(object):
+    """
+    Handles overall EyePi functionality in terms of injesting event stream from
+    camera and model
+
+    labels: the full list of labels known by the model
+    s3bucket_name: the target s3 bucket where video clips should be written
+    target_object: the object that should be alerted on, model-dependent and should be present in labels
+    min_conf_threshold: minimum confidence threshold for detection, a number between 0.0 - 1.0
+    """
+    def __init__(self, labels, s3bucket_name, target_object, min_conf_threshold):
+        self.labels = labels
+        self.bucket_name = s3bucket_name
+        self.target_object = target_object  # TODO: validate that the target_object is present in labels
+        self.min_conf_threshold = min_conf_threshold
+        self.num_captured_frames = 0
+
+        # The length of the capture is determined by a frame count rather than time-based
+        # Since we're setting the output videowriter to 1 FPS, presumably this will
+        # translate into 10 seconds of video
+        self.num_frames_per_video = 10
+
+        # This video codec worked after some trial and error as long as the filename was ".avi"
+        # See https://stackoverflow.com/questions/30509573/writing-an-mp4-video-using-python-opencv
+        self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+
+        # State machine
+        self.state = 'IDLE'
+        self.last_object_detected_confidence = float(0)
+
+        # Threadpool executor to keep from blocking the main thread.
+        # Keep max workers at 1 so it's easier to reason about concurrent access to data.
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+        # Create the s3 client and validate the creds by listing buckets
+        self.s3_client = boto3.client('s3')
+        self.validate_s3_creds()
+
+
+    def validate_s3_creds(self):
+        """
+        Fail-fast and make sure we can at least list the s3 buckets
+        """
+        self.s3_client.list_buckets()
+        print("S3 creds have been verified")
+
+    def shutdown(self):
+        self.executor.shutdown(wait=True)
+
+    def process_event(self, event):
+        """
+
+        After the target object is detected with a high enough threshold (eg, 72%), it will
+        enter the OBJECT_DETECTED_CAPTURING_VIDEO state and:
+
+        - Capture each video frame to a buffer in memory for the next 5 seconds
+        - Trigger the state transition back to the idle state, which will do the following:
+            - Kick off a separate thread so we don't block the VideoStream thread
+            - Collect the frames from the buffer and write to a file
+            - Upload the video file to s3 (alert_123.mp4)
+            - Generate a pre-signed url for the video file
+            - Upload an alert_123.txt file like "A person was detected with 72% accuracy: {presigned_url} to s3
+
+        States:
+
+            IDLE
+            OBJECT_DETECTED_CAPTURING_VIDEO
+
+        """
+
+        if self.state == 'IDLE':
+            self.process_event_idle_state(event)
+        elif self.state == 'OBJECT_DETECTED_CAPTURING_VIDEO':
+            self.process_event_capturing_state(event)
+        else:
+            raise Exception("Unknown state: {}".format(self.state))
+
+    def object_detected(self, event):
+        found_object = False
+        # Loop over all scores, find the corresponding object name, and see if it's the object we care about
+        for i in range(len(event.detected_scores)):
+            if ((event.detected_scores[i] > self.min_conf_threshold) and (event.detected_scores[i] <= 1.0)):
+                object_name = self.labels[int(event.detected_classes[i])]
+                if object_name.lower() == self.target_object:
+                    found_object = True
+                    self.last_object_detected_confidence = event.detected_scores[i]
+                    break
+
+        return found_object
+
+    def process_event_idle_state(self, event):
+        if self.object_detected(event) == True:
+            self.transition_to_capturing_state(event)
+
+    def process_event_capturing_state(self, event):
+
+        self.num_captured_frames += 1
+        self.writer.write(event.frame)  # TODO: this should happen in self.executor() so it doesn't block the main thread
+        print("Captured frame {}/{}".format(self.num_captured_frames, self.num_frames_per_video))
+
+        if self.num_captured_frames > self.num_frames_per_video:
+            self.transition_to_idle_state(event)
+
+    def transition_to_capturing_state(self, event):
+
+        print(f"{self.target_object} detected!!  Capturing video")
+
+        self.state = 'OBJECT_DETECTED_CAPTURING_VIDEO'
+        self.num_captured_frames = 0
+
+        # The AVI file extension matters a lot - See https://stackoverflow.com/questions/30509573/writing-an-mp4-video-using-python-opencv
+        self.latest_capture_file_name = "alert_{}.avi".format(datetime.datetime.utcnow().timestamp())
+        self.latest_capture_file_path = "/tmp/{}".format(self.latest_capture_file_name)
+        (h, w) = event.frame.shape[:2]
+
+        # The FPS of the writer.  I guess this sets the playback speed?
+        # What should this be set to?
+        fps = 1
+
+        self.writer = cv2.VideoWriter(
+            self.latest_capture_file_path,
+            self.fourcc,
+            fps,
+            (w, h),
+            True,
+        )
+
+    def transition_to_idle_state(self, event):
+
+        print("Finished capturing video, returning to IDLE state")
+
+        self.state = 'IDLE'
+        print("Finished capturing video: {}".format(self.latest_capture_file_path))
+
+        # Kick off thread to save video and json with signed s3 url and push both to s3
+        future = self.executor.submit(
+            self.push_event_to_s3,
+            event=event,
+            filename=self.latest_capture_file_path,
+            object_name=self.latest_capture_file_name,
+        )
+        future.add_done_callback(future_callback_error_logger)
+
+        self.writer.release()  # TODO: should happen in self.executor() task
+        self.num_captured_frames = 0
+
+    def push_event_to_s3(self, event, filename, object_name):
+        """
+        - Push video to s3
+        - Generate signed URL for video
+        - Write an alert file that says "Person detected .. <link to video>"
+        - Write alert file to s3
+        """
+
+        try:
+            print("Uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
+            response = self.s3_client.upload_file(
+                filename,
+                self.bucket_name,
+                object_name,
+            )
+            print("Finished uploading {} -> {}/{} .. ".format(filename, self.bucket_name, object_name))
+
+            # Make the video capture file public
+            # TODO: use signed URLs instead of making the file public
+            self.s3_client.put_object_acl(ACL='public-read', Bucket=self.bucket_name, Key="%s" % (object_name))
+
+
+            # Create and upload alert meta file
+            public_url = f'https://{self.bucket_name}.s3.amazonaws.com/{object_name}'
+
+            alert_meta = {
+                "detected_object": self.target_object,
+                "detection_confidence": float(self.last_object_detected_confidence),
+                "captured_video_url": public_url,
+            }
+
+            alert_meta_object_name = "{}.json".format(object_name)
+            alert_meta_filepath = "/tmp/{}".format(alert_meta_object_name)
+            f = open(alert_meta_filepath, "a")
+            f.write(json.dumps(alert_meta))
+            f.close()
+
+            print("Uploading {} -> {}/{} .. ".format(alert_meta_filepath, self.bucket_name, alert_meta_object_name))
+
+            response = self.s3_client.upload_file(
+                alert_meta_filepath,
+                self.bucket_name,
+                alert_meta_object_name,
+            )
+            print("Finished uploading {} -> {}/{} .. ".format(alert_meta_filepath, self.bucket_name, alert_meta_object_name))
+
+        except Exception as e:
+            print("Exception writing {} to s3: {}".format(object_name, str(e)))
+            raise e
+
+def future_callback_error_logger(future):
+    """
+    Utility to help log the result or exception of a future so it doesn't get lost in the stack
+    """
+    try:
+        result = future.result()
+        print("Future result: {}".format(result))
+    except Exception as e:
+        print("Executor Exception: {}".format(e))
 
 if __name__ == "__main__":
 
