@@ -92,16 +92,21 @@ class EyePiEventStream(object):
     """
     Handles overall EyePi functionality in terms of injesting event stream from
     camera and model
+
+    labels: the full list of labels known by the model
+    s3bucket_name: the target s3 bucket where video clips should be written
+    target_object: the object that should be alerted on, model-dependent and should be present in labels
     """
-    def __init__(self, labels, s3bucket_name):
+    def __init__(self, labels, s3bucket_name, target_object):
         self.s3_client = boto3.client('s3')
         self.labels = labels
+        self.target_object = target_object  # TODO: validate that the target_object is present in labels
         self.min_detection_threshold = 0.72
         self.num_captured_frames = 0
         self.num_frames_per_video = 5  # at 1 FPS, this is 5s worth of video
         self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
         self.state = 'IDLE'
-        self.last_person_detected_confidence = float(0)
+        self.last_object_detected_confidence = float(0)
 
         # Threadpool executor to keep from blocking the main thread.
         # Keep max workers at 1 so it's easier to reason about concurrent access to data.
@@ -122,8 +127,8 @@ class EyePiEventStream(object):
     def process_event(self, event):
         """
 
-        After a person is detected with a high enough threshold (eg, 72%), it will
-        enter the PERSON_DETECTED_CAPTURING_VIDEO state and:
+        After the target object is detected with a high enough threshold (eg, 72%), it will
+        enter the OBJECT_DETECTED_CAPTURING_VIDEO state and:
 
         - Capture each video frame to a buffer in memory for the next 5 seconds
         - Trigger the state transition back to the idle state, which will do the following:
@@ -136,32 +141,32 @@ class EyePiEventStream(object):
         States:
 
             IDLE
-            PERSON_DETECTED_CAPTURING_VIDEO
+            OBJECT_DETECTED_CAPTURING_VIDEO
 
         """
 
         if self.state == 'IDLE':
             self.process_event_idle_state(event)
-        elif self.state == 'PERSON_DETECTED_CAPTURING_VIDEO':
+        elif self.state == 'OBJECT_DETECTED_CAPTURING_VIDEO':
             self.process_event_capturing_state(event)
         else:
             raise Exception("Unknown state: {}".format(self.state))
 
-    def person_detected(self, event):
-        found_person = False
-        # Loop over all scores, find the corresponding object name, and see if it's a person
+    def object_detected(self, event):
+        found_object = False
+        # Loop over all scores, find the corresponding object name, and see if it's the object we care about
         for i in range(len(event.detected_scores)):
             if ((event.detected_scores[i] > self.min_detection_threshold) and (event.detected_scores[i] <= 1.0)):
                 object_name = self.labels[int(event.detected_classes[i])]
-                if object_name.lower() == 'person':
-                    found_person = True
-                    self.last_person_detected_confidence = event.detected_scores[i]
+                if object_name.lower() == self.target_object:
+                    found_object = True
+                    self.last_object_detected_confidence = event.detected_scores[i]
                     break
 
-        return found_person
+        return found_object
 
     def process_event_idle_state(self, event):
-        if self.person_detected(event) == True:
+        if self.object_detected(event) == True:
             self.transition_to_capturing_state(event)
 
     def process_event_capturing_state(self, event):
@@ -175,9 +180,9 @@ class EyePiEventStream(object):
 
     def transition_to_capturing_state(self, event):
 
-        print("Person detected!!  Capturing video")
+        print("Object detected!!  Capturing video")
 
-        self.state = 'PERSON_DETECTED_CAPTURING_VIDEO'
+        self.state = 'OBJECT_DETECTED_CAPTURING_VIDEO'
         self.num_captured_frames = 0
 
         self.latest_capture_file_name = "alert_{}.avi".format(datetime.datetime.utcnow().timestamp())
@@ -237,8 +242,8 @@ class EyePiEventStream(object):
             public_url = f'https://{self.bucket_name}.s3.amazonaws.com/{object_name}'
 
             alert_meta = {
-                "detected_object": "person",
-                "detection_confidence": float(self.last_person_detected_confidence),
+                "detected_object": self.target_object,
+                "detection_confidence": float(self.last_object_detected_confidence),
                 "captured_video_url": public_url,
             }
 
@@ -348,6 +353,7 @@ def main(args):
     eyePiEventStream = EyePiEventStream(
         labels=labels,
         s3bucket_name=s3bucket_name,
+        target_object=args.targetobject,
     )
     eyePiEventStream.validate_s3_creds()
 
@@ -435,6 +441,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--s3bucket', help='The name of the s3 bucket where capture videos should be uploaded to',
                         required=True)
+    parser.add_argument('--targetobject', help='The object to detect.  Eg, person',
+                        default='person')
     parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
                         default='modeldir')
     parser.add_argument('--graph', help='Name of the .tflite file, if different than detect.tflite',

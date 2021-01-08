@@ -36,7 +36,7 @@ def lambda_handler(event, context):
         sns = boto3.client('sns')
         sns.publish(
             TopicArn=SNS_TOPIC_ARN,
-            Subject='EyePi person detected',
+            Subject='EyePi object detected',
             Message='{} detected with {}% confidence.  Watch captured video: {}'.format(
                 event_json['detected_object'],
                 event_json['detection_confidence'],
