@@ -201,6 +201,21 @@ Where the `-d` tells docker to daemonize the process.  It will show the containe
 $ docker logs -f ce43d7b59c
 ```
 
+## Command Line Args
+
+| Name  | Description | Example |
+| ------------- | ------------- | ------------- |
+| `s3bucket`  | The name of the s3 bucket to upload capture videos to  | `--s3bucket eyepi`  |
+| `targetobject`  | The object to detect  | `--targetobject mouse`  |
+| `threshold`  | The detection threshold between 0.0 and 1.0  | `--threshold 0.72`  |
+| `modeldir`  | The directory in the container relative to `/root` where to look for the model.  Can be docker volume mount or absolute path. | `--modeldir modeldir`  |
+
+
+## Credits
+
+1. [Evan Juras](https://github.com/EdjeElectronics/TensorFlow-Lite-Object-Detection-on-Android-and-Raspberry-Pi)
+1. [Adrian Rosebrock](https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/)
+
 ## References
 
 * https://github.com/EdjeElectronics/TensorFlow-Lite-Object-Detection-on-Android-and-Raspberry-Pi
