@@ -96,12 +96,13 @@ class EyePiEventStream(object):
     labels: the full list of labels known by the model
     s3bucket_name: the target s3 bucket where video clips should be written
     target_object: the object that should be alerted on, model-dependent and should be present in labels
+    min_conf_threshold: minimum confidence threshold for detection, a number between 0.0 - 1.0
     """
-    def __init__(self, labels, s3bucket_name, target_object):
+    def __init__(self, labels, s3bucket_name, target_object, min_conf_threshold):
         self.s3_client = boto3.client('s3')
         self.labels = labels
         self.target_object = target_object  # TODO: validate that the target_object is present in labels
-        self.min_detection_threshold = 0.72
+        self.min_conf_threshold = min_conf_threshold
         self.num_captured_frames = 0
         self.num_frames_per_video = 5  # at 1 FPS, this is 5s worth of video
         self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
@@ -156,7 +157,7 @@ class EyePiEventStream(object):
         found_object = False
         # Loop over all scores, find the corresponding object name, and see if it's the object we care about
         for i in range(len(event.detected_scores)):
-            if ((event.detected_scores[i] > self.min_detection_threshold) and (event.detected_scores[i] <= 1.0)):
+            if ((event.detected_scores[i] > self.min_conf_threshold) and (event.detected_scores[i] <= 1.0)):
                 object_name = self.labels[int(event.detected_classes[i])]
                 if object_name.lower() == self.target_object:
                     found_object = True
@@ -180,7 +181,7 @@ class EyePiEventStream(object):
 
     def transition_to_capturing_state(self, event):
 
-        print("Object detected!!  Capturing video")
+        print(f"{self.target_object} detected!!  Capturing video")
 
         self.state = 'OBJECT_DETECTED_CAPTURING_VIDEO'
         self.num_captured_frames = 0
@@ -354,6 +355,7 @@ def main(args):
         labels=labels,
         s3bucket_name=s3bucket_name,
         target_object=args.targetobject,
+        min_conf_threshold=min_conf_threshold,
     )
     eyePiEventStream.validate_s3_creds()
 
@@ -450,7 +452,7 @@ if __name__ == "__main__":
     parser.add_argument('--labels', help='Name of the labelmap file, if different than labelmap.txt',
                         default='labelmap.txt')
     parser.add_argument('--threshold', help='Minimum confidence threshold for displaying detected objects',
-                        default=0.5)
+                        default=0.72)
     parser.add_argument('--resolution', help='Desired webcam resolution in WxH. If the webcam does not support the resolution entered, errors may occur.',
                         default='1280x720')
     parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
