@@ -20,6 +20,7 @@ def main(args):
     MODEL_NAME = args.modeldir
     GRAPH_NAME = args.graph
     LABELMAP_NAME = args.labels
+    LOG_LEVEL = args.loglevel
     min_conf_threshold = float(args.threshold)
     resW, resH = args.resolution.split('x')
     imW, imH = int(resW), int(resH)
@@ -146,6 +147,9 @@ def main(args):
                 # Draw label
                 object_name = labels[int(classes[i])] # Look up object name from "labels" array using class index
                 label = '%s: %d%%' % (object_name, int(scores[i]*100)) # Example: 'person: 72%'
+                if LOG_LEVEL == 'DEBUG':
+                    print(f"Detected {label}")
+
                 labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2) # Get font size
                 label_ymin = max(ymin, labelSize[1] + 10) # Make sure not to draw label too close to top of window
                 cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), (255, 255, 255), cv2.FILLED) # Draw white box to put label text in
@@ -181,6 +185,7 @@ class VideoStream:
     Define VideoStream class to handle streaming of video from webcam in separate processing thread
     """
     def __init__(self,resolution=(640,480),framerate=30):
+
         # Initialize the PiCamera and the camera image stream
         self.stream = cv2.VideoCapture(0)
         ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
@@ -190,11 +195,11 @@ class VideoStream:
         # Read first frame from the stream
         (self.grabbed, self.frame) = self.stream.read()
 
-	# Variable to control when the camera is stopped
+        # Variable to control when the camera is stopped
         self.stopped = False
 
     def start(self):
-	# Start the thread that reads frames from the video stream
+        # Start the thread that reads frames from the video stream
         Thread(target=self.update,args=()).start()
         return self
 
@@ -211,11 +216,11 @@ class VideoStream:
             (self.grabbed, self.frame) = self.stream.read()
 
     def read(self):
-	# Return the most recent frame
+        # Return the most recent frame
         return self.frame
 
     def stop(self):
-	# Indicate that the camera and thread should be stopped
+        # Indicate that the camera and thread should be stopped
         self.stopped = True
 
 
@@ -436,6 +441,7 @@ def future_callback_error_logger(future):
     except Exception as e:
         print("Executor Exception: {}".format(e))
 
+
 if __name__ == "__main__":
 
     # Define and parse input arguments
@@ -444,6 +450,8 @@ if __name__ == "__main__":
                         required=True)
     parser.add_argument('--targetobject', help='The object to detect.  Eg, person',
                         default='person')
+    parser.add_argument('--loglevel', help='The loglevel to use, INFO, DEBUG',
+                        default='INFO')
     parser.add_argument('--modeldir', help='Folder the .tflite file is located in',
                         default='modeldir')
     parser.add_argument('--graph', help='Name of the .tflite file, if different than detect.tflite',
