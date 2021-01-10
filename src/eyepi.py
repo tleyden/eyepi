@@ -318,7 +318,7 @@ class EyePiEventStream(object):
         for i in range(len(event.detected_scores)):
             if ((event.detected_scores[i] > self.min_conf_threshold) and (event.detected_scores[i] <= 1.0)):
                 object_name = self.labels[int(event.detected_classes[i])]
-                if object_name.lower() == self.target_object:
+                if object_name.lower() == self.target_object.lower():
                     found_object = True
                     self.last_object_detected_confidence = event.detected_scores[i]
                     break
