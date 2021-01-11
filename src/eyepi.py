@@ -15,7 +15,17 @@ import concurrent.futures
 Eyepi - object detection on Raspberry Pi with Tensorflow + notification via AWS cloud. 
 """
 
+# Global constants
+
+# This video codec worked after some trial and error as long as the filename was ".avi"
+# See https://stackoverflow.com/questions/30509573/writing-an-mp4-video-using-python-opencv
+fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+
 def main(args):
+
+    """
+    Main entry point after parsing args
+    """
 
     MODEL_NAME = args.modeldir
     GRAPH_NAME = args.graph
@@ -103,6 +113,15 @@ def main(args):
         min_conf_threshold=min_conf_threshold,
     )
 
+    recorder_state = 'IDLE'
+    if int(args.recordxseconds) > 0:
+        recorder_state = 'RECORD_ON_NEXT_EVENT'
+    eyePiRecorder = EyePiRecorder(
+        initial_state = recorder_state,
+        recording_length_seconds = args.recordxseconds,
+        s3bucket_name=s3bucket_name,
+    )
+
     while True:
 
         # Start timer (for calculating frame rate)
@@ -167,6 +186,9 @@ def main(args):
         )
         eyePiEventStream.process_event(eyePiEvent)
 
+        # Send to recorder if it's enabled
+        eyePiRecorder.process_event(frame=frame)
+
         # Calculate framerate
         t2 = cv2.getTickCount()
         time1 = (t2-t1)/freq
@@ -179,6 +201,7 @@ def main(args):
     # Clean up
     videostream.stop()
     eyePiEventStream.shutdown()
+    eyePiRecorder.shutdown()
 
 class VideoStream:
     """
@@ -188,7 +211,7 @@ class VideoStream:
 
         # Initialize the PiCamera and the camera image stream
         self.stream = cv2.VideoCapture(0)
-        ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        ret = self.stream.set(cv2.CAP_PROP_FOURCC, fourcc)
         ret = self.stream.set(3,resolution[0])
         ret = self.stream.set(4,resolution[1])
 
@@ -224,7 +247,127 @@ class VideoStream:
         self.stopped = True
 
 
+class EyePiRecorder(object):
+    """
+    Recorder used for things like positioning the camera and seeing how well the model works.
 
+    After it's finished recording, it will:
+     - Upload the recording to S3
+     - Send email alert
+
+    This is for easy viewing from a mobile device.
+
+    initial_state: 'IDLE' or 'RECORDING'
+    recording_length_seconds: How long in seconds that recordings should last when triggered
+    s3bucket_name: the target s3 bucket where video clips should be written
+
+    """
+    def __init__(self, initial_state, recording_length_seconds, s3bucket_name):
+
+        if initial_state not in ['IDLE', 'RECORDING', 'RECORD_ON_NEXT_EVENT']:
+            raise Exception("Unexpected state")
+
+        self.start_recording_timestamp = None
+        self.recording_length_seconds = recording_length_seconds
+        self.s3bucket_name = s3bucket_name
+
+        # State machine
+        self.state = initial_state
+
+        # Threadpool executor to keep from blocking the main thread.
+        # Keep max workers at 1 so it's easier to reason about concurrent access to data.
+        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+        # Create the s3 client
+        self.s3_client = boto3.client('s3')
+
+    def shutdown(self):
+        self.executor.shutdown(wait=True)
+
+    def process_event_async(self, event):
+        """
+        States:
+
+            IDLE
+            RECORDING
+            RECORD_ON_NEXT_EVENT
+        """
+
+        if self.state == 'IDLE':
+            self.process_event_idle_state(event)
+        elif self.state == 'RECORDING':
+            self.process_event_recording_state(event)
+        elif self.state == 'RECORD_ON_NEXT_EVENT':
+            self.transition_to_recording_state(event)
+            self.process_event_recording_state(event)
+        else:
+            raise Exception("Unknown state: {}".format(self.state))
+
+    def process_event(self, event):
+        future = self.executor.submit(
+            self.process_event_async,
+            event=event,
+        )
+        future.add_done_callback(future_callback_error_logger)
+
+    def process_event_idle_state(self, event):
+        # Ignore any events while not recording
+        pass
+
+    def process_event_recording_state(self, event):
+
+        # Write event to output file
+        self.writer.write(event.frame)
+
+        # Check if we're done recording, if so then transition to idle state and send alert
+        now = datetime.datetime.utcnow().timestamp()
+        delta_seconds = now - self.start_recording_timestamp
+        if delta_seconds >= self.recording_length_seconds:
+            self.transition_to_idle_state()
+            self.send_alert_with_recording()
+
+    def transition_to_recording_state(self, event):
+
+        self.state = 'RECORDING'
+        self.start_recording_timestamp = datetime.datetime.utcnow().timestamp()
+
+        # The AVI file extension matters a lot - See https://stackoverflow.com/questions/30509573/writing-an-mp4-video-using-python-opencv
+        self.latest_recording_file_name = "recording_{}.avi".format(datetime.datetime.utcnow().timestamp())
+        self.latest_recording_file_path = "/tmp/{}".format(self.latest_recording_file_name)
+        (h, w) = event.frame.shape[:2]
+
+        # The FPS of the writer.  I guess this sets the playback speed?
+        # What should this be set to?
+        fps = 1
+
+        self.writer = cv2.VideoWriter(
+            self.latest_recording_file_path,
+            fourcc,
+            fps,
+            (w, h),
+            True,
+        )
+
+    def transition_to_idle_state(self):
+
+        print("Finished capturing video, returning to IDLE state")
+
+        self.state = 'IDLE'
+        print("Finished recording video: {}".format(self.latest_recording_file_path))
+
+        self.writer.release()
+
+        self.start_recording_timestamp = None
+
+    def send_alert_with_recording(self):
+
+        push_event_to_s3(
+            self.s3_client,
+            self.bucket_name,
+            self.latest_recording_file_path,
+            self.latest_recording_file_name,
+            "Recording",
+            1.0)
 
 class EyePiDetectionEvent(object):
     """
@@ -234,6 +377,7 @@ class EyePiDetectionEvent(object):
         self.frame = frame
         self.detected_classes = detected_classes
         self.detected_scores = detected_scores
+
 
 class EyePiEventStream(object):
     """
@@ -256,10 +400,6 @@ class EyePiEventStream(object):
         # Since we're setting the output videowriter to 1 FPS, presumably this will
         # translate into 10 seconds of video
         self.num_frames_per_video = 10
-
-        # This video codec worked after some trial and error as long as the filename was ".avi"
-        # See https://stackoverflow.com/questions/30509573/writing-an-mp4-video-using-python-opencv
-        self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
 
         # State machine
         self.state = 'IDLE'
@@ -356,7 +496,7 @@ class EyePiEventStream(object):
 
         self.writer = cv2.VideoWriter(
             self.latest_capture_file_path,
-            self.fourcc,
+            fourcc,
             fps,
             (w, h),
             True,
@@ -369,7 +509,7 @@ class EyePiEventStream(object):
         self.state = 'IDLE'
         print("Finished capturing video: {}".format(self.latest_capture_file_path))
 
-        # Kick off thread to save video and json with signed s3 url and push both to s3
+        # Kick off async task to save video and json with signed s3 url and push both to s3
         future = self.executor.submit(
             self.push_event_to_s3,
             event=event,
@@ -437,10 +577,61 @@ def future_callback_error_logger(future):
     """
     try:
         result = future.result()
-        print("Future result: {}".format(result))
     except Exception as e:
         print("Executor Exception: {}".format(e))
 
+def push_event_to_s3(s3_client, bucket_name, filename, object_name, detected_object, detection_confidence):
+    """
+
+    TODO: replace other push_event_to_s3 with call to this one
+
+    - Push video to s3
+    - Generate signed URL for video
+    - Write an alert file that says "Person detected .. <link to video>"
+    - Write alert file to s3
+    """
+
+    try:
+        print("Uploading {} -> {}/{} .. ".format(filename, bucket_name, object_name))
+        response = s3_client.upload_file(
+            filename,
+            bucket_name,
+            object_name,
+        )
+        print("Finished uploading {} -> {}/{} .. ".format(filename, bucket_name, object_name))
+
+        # Make the video capture file public
+        # TODO: use signed URLs instead of making the file public
+        s3_client.put_object_acl(ACL='public-read', Bucket=bucket_name, Key="%s" % (object_name))
+
+
+        # Create and upload alert meta file
+        public_url = f'https://{bucket_name}.s3.amazonaws.com/{object_name}'
+
+        alert_meta = {
+            "detected_object": detected_object,
+            "detection_confidence": detection_confidence,
+            "captured_video_url": public_url,
+        }
+
+        alert_meta_object_name = "{}.json".format(object_name)
+        alert_meta_filepath = "/tmp/{}".format(alert_meta_object_name)
+        f = open(alert_meta_filepath, "a")
+        f.write(json.dumps(alert_meta))
+        f.close()
+
+        print("Uploading {} -> {}/{} .. ".format(alert_meta_filepath, bucket_name, alert_meta_object_name))
+
+        response = s3_client.upload_file(
+            alert_meta_filepath,
+            bucket_name,
+            alert_meta_object_name,
+        )
+        print("Finished uploading {} -> {}/{} .. ".format(alert_meta_filepath, bucket_name, alert_meta_object_name))
+
+    except Exception as e:
+        print("Exception writing {} to s3: {}".format(object_name, str(e)))
+        raise e
 
 if __name__ == "__main__":
 
@@ -464,6 +655,8 @@ if __name__ == "__main__":
                         default='1280x720')
     parser.add_argument('--edgetpu', help='Use Coral Edge TPU Accelerator to speed up detection',
                         action='store_true')
+    parser.add_argument('--recordxseconds', help='Record video with detection overlay for X seconds and upload to S3 and send alert',
+                        default='0')
 
     args = parser.parse_args()
     main(args)
