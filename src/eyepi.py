@@ -11,7 +11,7 @@ import json
 import datetime
 import concurrent.futures
 import traceback
-
+from collections import deque
 
 """
 Eyepi - object detection on Raspberry Pi with Tensorflow + notification via AWS cloud. 
@@ -104,7 +104,12 @@ def main(args):
     freq = cv2.getTickFrequency()
 
     # Initialize video stream
-    videostream = VideoStream(resolution=(imW,imH),framerate=30).start()
+    videostream = VideoStream(
+        inputdevice=args.inputdevice,
+        resolution=(imW,imH),
+        framerate=30,
+    )
+    videostream.start()
     time.sleep(1)
 
     # Create the object that will process video frames and recognition results and upload to s3 and send alerts
@@ -131,6 +136,10 @@ def main(args):
 
         # Grab frame from video stream
         frame1 = videostream.read()
+        if frame1 is None:
+            print("Videostream returned empty frame, waiting ..")
+            time.sleep(0.01)
+            continue
 
         # Acquire frame and resize to expected shape [1xHxWx3]
         frame = frame1.copy()
@@ -210,16 +219,46 @@ class VideoStream:
     """
     Define VideoStream class to handle streaming of video from webcam in separate processing thread
     """
-    def __init__(self,resolution=(640,480),framerate=30):
+    def __init__(self,inputdevice,resolution=(640,480),framerate=30):
+
+        self.inputdevice = inputdevice
+
+        self.framerate = framerate
 
         # Initialize the PiCamera and the camera image stream
-        self.stream = cv2.VideoCapture(0)
+        if self.inputdevice == '/dev/video0':
+            self.stream = cv2.VideoCapture(0)
+
+            # When reading from the camera, it seems to be bottlenecked on
+            # other things like model inference and so the videostream thread is
+            # always keeps the framebuffer full, so the framebuffer size can be
+            # very small at the risk of other threads missing some frames.
+            framebuffer_size = 5 * 5  # 5 FPS * 5 seconds
+
+        else:
+            self.stream = cv2.VideoCapture(self.inputdevice)
+
+            # When reading from a file, it's OK to introduce more latency
+            # in order to reduce the chance of:
+            # 1) starving the other threads if the videostream thread is producing frames slower than
+            # other threads are consuming frames
+            # 2) overwriting frames if the videostream thread is producing faster than other
+            # threads are consuming.
+            framebuffer_size = 5 * 60  # 5 FPS * 60 seconds
+
+            # Set the playback FPS to 6, doesn't seem to work
+            #self.stream.set(cv2.CAP_PROP_FPS, 6)
+
         ret = self.stream.set(cv2.CAP_PROP_FOURCC, fourcc)
         ret = self.stream.set(3,resolution[0])
         ret = self.stream.set(4,resolution[1])
 
+        self.framebuffer = deque([], framebuffer_size)
+
         # Read first frame from the stream
-        (self.grabbed, self.frame) = self.stream.read()
+        (self.grabbed, frame) = self.stream.read()
+
+        self.framebuffer.appendleft(frame)
 
         # Variable to control when the camera is stopped
         self.stopped = False
@@ -239,11 +278,18 @@ class VideoStream:
                 return
 
             # Otherwise, grab the next frame from the stream
-            (self.grabbed, self.frame) = self.stream.read()
+            (self.grabbed, frame) = self.stream.read()
+
+            self.framebuffer.appendleft(frame)
+
+            if self.inputdevice != '/dev/video0':
+                # Force it to 8 FPS if reading from file
+                time.sleep(0.125)
 
     def read(self):
         # Return the most recent frame
-        return self.frame
+        frame = self.framebuffer.pop()
+        return frame
 
     def stop(self):
         # Indicate that the camera and thread should be stopped
@@ -346,9 +392,10 @@ class EyePiRecorder(object):
         self.latest_recording_file_path = "/tmp/{}".format(self.latest_recording_file_name)
         (h, w) = event.frame.shape[:2]
 
-        # The FPS of the writer.  I guess this sets the playback speed?
-        # What should this be set to?
-        fps = 1
+        # The FPS of the writer which sets the playback speed.  It should be as close to the
+        # recording FPS as possible so that wall clock time passage of recording matches up with
+        # wall clock time passage of playback.  How do we know the recording FPS though?
+        fps = 4.5  # Set to the average FPS on Raspi 4
 
         self.writer = cv2.VideoWriter(
             self.latest_recording_file_path,
@@ -629,6 +676,9 @@ if __name__ == "__main__":
                         action='store_true')
     parser.add_argument('--recordxseconds', help='Record video with detection overlay for X seconds and upload to S3 and send alert',
                         default='0')
+    parser.add_argument('--inputdevice',
+                        help='The input source device or AVI file to get video input.  Defaults to camera at /dev/video0',
+                        default='/dev/video0')
 
     args = parser.parse_args()
     main(args)
