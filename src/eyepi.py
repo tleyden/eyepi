@@ -184,10 +184,13 @@ def main(args):
             detected_classes=classes,
             detected_scores=scores
         )
-        eyePiEventStream.process_event(eyePiEvent)
+        eyePiEventStream.process_event(event=eyePiEvent)
 
         # Send to recorder if it's enabled
-        eyePiRecorder.process_event(frame=frame)
+        eyePiRecordingEvent = EyePiRecordingEvent(
+            frame=frame,
+        )
+        eyePiRecorder.process_event(event=eyePiRecordingEvent)
 
         # Calculate framerate
         t2 = cv2.getTickCount()
@@ -246,6 +249,12 @@ class VideoStream:
         # Indicate that the camera and thread should be stopped
         self.stopped = True
 
+class EyePiRecordingEvent(object):
+    """
+    An event for the EyePiRecorder to possibly record
+    """
+    def __init__(self, frame):
+        self.frame = frame
 
 class EyePiRecorder(object):
     """
