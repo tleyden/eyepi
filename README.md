@@ -32,6 +32,10 @@ Table of Contents
 * Raspbian Buster OS (Raspbian GNU/Linux 10)
 * AWS Account
 
+## Known security issues
+
+* The captured videos uplaoded to S3 are public and not secure.
+
 ## Setup Raspberry Pi (Headless)
 
 * Download *Raspberry Pi OS with desktop and recommended software* from the [Raspi Downloads](https://www.raspberrypi.org/software/operating-systems/) page
