@@ -120,7 +120,7 @@ def main(args):
         recorder_state = 'RECORD_ON_NEXT_EVENT'
     eyePiRecorder = EyePiRecorder(
         initial_state = recorder_state,
-        recording_length_seconds = args.recordxseconds,
+        recording_length_seconds = int(args.recordxseconds),
         s3bucket_name=s3bucket_name,
     )
 
@@ -339,6 +339,7 @@ class EyePiRecorder(object):
 
     def transition_to_recording_state(self, event):
 
+        print(f"Recording for {self.recording_length_seconds} seconds")
         self.state = 'RECORDING'
         self.start_recording_timestamp = datetime.datetime.utcnow().timestamp()
 
@@ -361,7 +362,7 @@ class EyePiRecorder(object):
 
     def transition_to_idle_state(self):
 
-        print("Finished capturing video, returning to IDLE state")
+        print("Finished capturing recording, returning to IDLE state")
 
         self.state = 'IDLE'
         print("Finished recording video: {}".format(self.latest_recording_file_path))
@@ -374,7 +375,7 @@ class EyePiRecorder(object):
 
         push_event_to_s3(
             self.s3_client,
-            self.bucket_name,
+            self.s3bucket_name,
             self.latest_recording_file_path,
             self.latest_recording_file_name,
             "Recording",
