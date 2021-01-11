@@ -10,6 +10,8 @@ import boto3
 import json
 import datetime
 import concurrent.futures
+import traceback
+
 
 """
 Eyepi - object detection on Raspberry Pi with Tensorflow + notification via AWS cloud. 
@@ -588,6 +590,7 @@ def future_callback_error_logger(future):
         result = future.result()
     except Exception as e:
         print("Executor Exception: {}".format(e))
+        traceback.print_exc()
 
 def push_event_to_s3(s3_client, bucket_name, filename, object_name, detected_object, detection_confidence):
     """
