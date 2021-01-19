@@ -113,7 +113,7 @@ def main(args):
     time.sleep(1)
 
     # Create the object that will process video frames and recognition results and upload to s3 and send alerts
-    eyePiEventStream = EyePiObjectDetector(
+    eyePiObjectDetector = EyePiObjectDetector(
         labels=labels,
         s3bucket_name=s3bucket_name,
         target_object=args.targetobject,
@@ -193,7 +193,7 @@ def main(args):
             detected_classes=classes,
             detected_scores=scores
         )
-        eyePiEventStream.process_event(event=eyePiEvent)
+        eyePiObjectDetector.process_event(event=eyePiEvent)
 
         # Send to recorder if it's enabled
         eyePiRecordingEvent = EyePiRecordingEvent(
@@ -212,7 +212,7 @@ def main(args):
 
     # Clean up
     videostream.stop()
-    eyePiEventStream.shutdown()
+    eyePiObjectDetector.shutdown()
     eyePiRecorder.shutdown()
 
 class VideoStream:
@@ -559,6 +559,9 @@ class EyePiObjectDetector(object):
         filename = self.latest_capture_file_path
         object_name = self.latest_capture_file_name
 
+        self.writer.release()
+        self.num_captured_frames = 0
+
         push_event_to_s3(
             s3_client=self.s3_client,
             bucket_name=self.bucket_name,
@@ -567,9 +570,6 @@ class EyePiObjectDetector(object):
             detected_object=self.target_object,
             detection_confidence=float(self.last_object_detected_confidence),
         )
-
-        self.writer.release()
-        self.num_captured_frames = 0
 
 
 def future_callback_error_logger(future):
