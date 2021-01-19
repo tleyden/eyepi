@@ -113,7 +113,7 @@ def main(args):
     time.sleep(1)
 
     # Create the object that will process video frames and recognition results and upload to s3 and send alerts
-    eyePiEventStream = EyePiEventStream(
+    eyePiEventStream = EyePiObjectDetector(
         labels=labels,
         s3bucket_name=s3bucket_name,
         target_object=args.targetobject,
@@ -295,6 +295,8 @@ class VideoStream:
         # Indicate that the camera and thread should be stopped
         self.stopped = True
 
+
+
 class EyePiRecordingEvent(object):
     """
     An event for the EyePiRecorder to possibly record
@@ -436,7 +438,7 @@ class EyePiDetectionEvent(object):
         self.detected_scores = detected_scores
 
 
-class EyePiEventStream(object):
+class EyePiObjectDetector(object):
     """
     Handles overall EyePi functionality in terms of injesting event stream from
     camera and model
@@ -482,26 +484,13 @@ class EyePiEventStream(object):
         self.executor.shutdown(wait=True)
 
     def process_event(self, event):
-        """
+        future = self.executor.submit(
+            self.process_event_async,
+            event=event,
+        )
+        future.add_done_callback(future_callback_error_logger)
 
-        After the target object is detected with a high enough threshold (eg, 72%), it will
-        enter the OBJECT_DETECTED_CAPTURING_VIDEO state and:
-
-        - Capture each video frame to a buffer in memory for the next 5 seconds
-        - Trigger the state transition back to the idle state, which will do the following:
-            - Kick off a separate thread so we don't block the VideoStream thread
-            - Collect the frames from the buffer and write to a file
-            - Upload the video file to s3 (alert_123.mp4)
-            - Generate a pre-signed url for the video file
-            - Upload an alert_123.txt file like "A person was detected with 72% accuracy: {presigned_url} to s3
-
-        States:
-
-            IDLE
-            OBJECT_DETECTED_CAPTURING_VIDEO
-
-        """
-
+    def process_event_async(self, event):
         if self.state == 'IDLE':
             self.process_event_idle_state(event)
         elif self.state == 'OBJECT_DETECTED_CAPTURING_VIDEO':
@@ -529,7 +518,7 @@ class EyePiEventStream(object):
     def process_event_capturing_state(self, event):
 
         self.num_captured_frames += 1
-        self.writer.write(event.frame)  # TODO: this should happen in self.executor() so it doesn't block the main thread
+        self.writer.write(event.frame)
         print("Captured frame {}/{}".format(self.num_captured_frames, self.num_frames_per_video))
 
         if self.num_captured_frames > self.num_frames_per_video:
@@ -566,19 +555,9 @@ class EyePiEventStream(object):
         self.state = 'IDLE'
         print("Finished capturing video: {}".format(self.latest_capture_file_path))
 
-        # Kick off async task to save video and json with signed s3 url and push both to s3
-        future = self.executor.submit(
-            self.push_event_to_s3,
-            event=event,
-            filename=self.latest_capture_file_path,
-            object_name=self.latest_capture_file_name,
-        )
-        future.add_done_callback(future_callback_error_logger)
-
-        self.writer.release()  # TODO: should happen in self.executor() task
-        self.num_captured_frames = 0
-
-    def push_event_to_s3(self, event, filename, object_name):
+        # Save video and json with signed s3 url and push both to s3
+        filename = self.latest_capture_file_path
+        object_name = self.latest_capture_file_name
 
         push_event_to_s3(
             s3_client=self.s3_client,
@@ -588,6 +567,10 @@ class EyePiEventStream(object):
             detected_object=self.target_object,
             detection_confidence=float(self.last_object_detected_confidence),
         )
+
+        self.writer.release()
+        self.num_captured_frames = 0
+
 
 def future_callback_error_logger(future):
     """
