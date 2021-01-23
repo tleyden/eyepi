@@ -37,9 +37,6 @@ class VideoStream:
             # threads are consuming.
             framebuffer_size = 5 * 60  # 5 FPS * 60 seconds
 
-            # Set the playback FPS to 6, doesn't seem to work
-            #self.stream.set(cv2.CAP_PROP_FPS, 6)
-
         ret = self.stream.set(cv2.CAP_PROP_FOURCC, fourcc)
         ret = self.stream.set(3,resolution[0])
         ret = self.stream.set(4,resolution[1])
