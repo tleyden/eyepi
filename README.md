@@ -4,7 +4,7 @@ Security camera object detection software that runs on a Raspberry Pi.
 
 When a person is detected by the model it sends an email/text notification with a 5 second video clip stored on AWS S3.
 
-![image](https://user-images.githubusercontent.com/296876/103612582-9e8f6700-4ed9-11eb-9266-f7e5ec927d9e.png)
+![image](https://user-images.githubusercontent.com/296876/105565962-5bf1cb00-5cde-11eb-8af8-00b388da71f7.png)
 
 Table of Contents
 =================
