@@ -220,6 +220,12 @@ $ docker logs -f ce43d7b59c
 1. [Evan Juras](https://github.com/EdjeElectronics/TensorFlow-Lite-Object-Detection-on-Android-and-Raspberry-Pi)
 1. [Adrian Rosebrock](https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/)
 
+## Related projects
+
+* [housecarl](https://github.com/RobertMcReed/housecarl)
+* [frigate.video](https://frigate.video/)
+
+
 ## References
 
 * https://github.com/EdjeElectronics/TensorFlow-Lite-Object-Detection-on-Android-and-Raspberry-Pi
